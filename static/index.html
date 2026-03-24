@@ -1,7 +1,170 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2196F3">
+    <title>Palet Takip Sistemi</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f5f5f5; color: #333; padding-bottom: 20px; }
+        .header { background: linear-gradient(135deg, #2196F3, #1976D2); color: white; padding: 20px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header h1 { font-size: 1.5rem; margin-bottom: 5px; }
+        .header .user-info { font-size: 0.85rem; opacity: 0.9; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; }
+        .container { padding: 16px; }
+        .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+        .menu-btn { background: white; border: none; padding: 10px 4px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.7rem; font-weight: 500; color: #2196F3; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .menu-btn:active { transform: scale(0.96); background: #f0f0f0; }
+        .menu-btn .icon { font-size: 1.3rem; }
+        .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-title { font-weight: 600; font-size: 1.1rem; margin-bottom: 12px; color: #1976D2; border-left: 3px solid #2196F3; padding-left: 10px; }
+        .stok-table { width: 100%; border-collapse: collapse; }
+        .stok-table th, .stok-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; }
+        .stok-table th { font-weight: 600; color: #666; font-size: 0.8rem; }
+        .stok-table td { font-size: 0.9rem; }
+        .miktar { font-weight: 600; text-align: right; }
+        .miktar.az { color: #f44336; }
+        .miktar.orta { color: #ff9800; }
+        .miktar.cok { color: #4caf50; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 0.85rem; color: #666; margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; font-family: inherit; }
+        .btn { background: #2196F3; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; width: 100%; }
+        .btn:active { background: #1976D2; }
+        .btn-small { border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.8rem; padding: 6px 12px; }
+        .btn-secondary { background: #9e9e9e; }
+        .hareket-item { padding: 12px; border-bottom: 1px solid #eee; }
+        .hareket-item .tarih { font-size: 0.7rem; color: #999; }
+        .hareket-item .islem { font-weight: 500; margin: 5px 0; }
+        .hareket-item .detay { font-size: 0.85rem; color: #666; }
+        .toast { position: fixed; bottom: 20px; left: 20px; right: 20px; background: #333; color: white; padding: 12px; border-radius: 8px; text-align: center; z-index: 1000; animation: fadeInUp 0.3s ease; }
+        .toast.success { background: #4caf50; }
+        .toast.error { background: #f44336; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .loading { text-align: center; padding: 40px; color: #999; }
+        .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2196F3, #1976D2); padding: 20px; }
+        .login-card { background: white; border-radius: 20px; padding: 30px 24px; width: 100%; max-width: 350px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .login-card h2 { text-align: center; color: #2196F3; margin-bottom: 24px; }
+        .musteri-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+        .musteri-item:hover { background: #f5f5f5; }
+        @media (max-width: 600px) { .menu-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .menu-btn { padding: 8px 2px; font-size: 0.65rem; } .menu-btn .icon { font-size: 1.2rem; } }
+        @media (max-width: 450px) { .menu-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; } .menu-btn { padding: 6px 2px; font-size: 0.6rem; } .menu-btn .icon { font-size: 1.1rem; } }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        const API_URL = window.location.origin;
+        let token = null;
+        let currentUser = null;
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        async function apiCall(endpoint, options = {}) {
+            const headers = { 'Content-Type': 'application/json', ...options.headers };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+            if (response.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                renderLogin();
+                return null;
+            }
+            const data = await response.json();
+            return { status: response.status, data };
+        }
+
+        function renderLogin() {
+            document.getElementById('app').innerHTML = `
+                <div class="login-container">
+                    <div class="login-card">
+                        <h2>🏭 Palet Takip</h2>
+                        <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi" placeholder="Kullanıcı adı"></div>
+                        <div class="form-group"><label>Şifre</label><input type="password" id="sifre" placeholder="Şifre"></div>
+                        <button class="btn" onclick="login()">Giriş Yap</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function login() {
+            const kullanici_adi = document.getElementById('kullanici_adi').value;
+            const sifre = document.getElementById('sifre').value;
+            if (!kullanici_adi || !sifre) { showToast('Kullanıcı adı ve şifre giriniz', 'error'); return; }
+            const result = await apiCall('/api/login', { method: 'POST', body: JSON.stringify({ kullanici_adi, sifre }) });
+            if (result && result.status === 200 && result.data.success) {
+                token = result.data.token;
+                currentUser = result.data.kullanici;
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                showToast('Giriş başarılı');
+                renderMain();
+            } else {
+                showToast(result?.data?.hata || 'Giriş başarısız', 'error');
+            }
+        }
+
+        function logout() {
+            token = null;
+            currentUser = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            renderLogin();
+        }
+
+        function renderMain() {
+            if (!currentUser) return;
+            const isDepocu = currentUser.tip === 'DEPOCU';
+            document.getElementById('app').innerHTML = `
+                <div class="header">
+                    <h1>🏭 Palet Takip</h1>
+                    <div class="user-info"><span>👤 ${currentUser.ad_soyad} (${currentUser.tip === 'DEPOCU' ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div>
+                </div>
+                <div class="container"><div class="menu-grid" id="menuGrid"></div><div id="content"></div></div>
+            `;
+            let menus = [];
+            if (isDepocu) {
+                menus = [
+                    { icon: '📦', text: 'Depo Stoğu', action: 'depoStok' },
+                    { icon: '📊', text: 'Raporlar', action: 'raporlar' },
+                    { icon: '🚚', text: 'Dağıtıcı Stokları', action: 'dagiticiStoklar' },
+                    { icon: '🏪', text: 'Müşteri Stokları', action: 'musteriStoklar' },
+                    { icon: '➡️', text: 'Depo → Dağıtıcı', action: 'depoDagiticiTransfer' },
+                    { icon: '⬅️', text: 'Dağıtıcıdan İade', action: 'dagiticiIade' },
+                    { icon: '✏️', text: 'Depo Stok Düzenle', action: 'depoStokDuzenle' },
+                    { icon: '🏷️', text: 'Palet Tipleri', action: 'paletTipleri' },
+                    { icon: '👥', text: 'Kullanıcılar', action: 'kullaniciYonetim' },
+                    { icon: '📂', text: 'Excel Yükle', action: 'excelYukle' },
+                    { icon: '📤', text: 'Excel Export', action: 'excelExport' },
+                    { icon: '➕', text: 'Dağıtıcı Ekle', action: 'dagiticiEkle' },
+                    { icon: '👤', text: 'Müşteri Ekle', action: 'musteriEkle' },
+                    { icon: '📋', text: 'Hareketler', action: 'hareketler' }
+                ];
+            } else {
+                menus = [
+                    { icon: '📦', text: 'Kendi Stoğum', action: 'kendiStok' },
+                    { icon: '🏪', text: 'Müşteri Stokları', action: 'musteriStoklar' },
+                    { icon: '➡️', text: 'Müşteriye Ver', action: 'musteriyeVer' },
+                    { icon: '⬅️', text: 'Müşteriden Al', action: 'musteridenAl' },
+                    { icon: '🏭', text: 'Depoya İade', action: 'depoyaIade' },
+                    { icon: '📋', text: 'Hareketlerim', action: 'hareketler' }
+                ];
+            }
+            document.getElementById('menuGrid').innerHTML = menus.map(menu => `<button class="menu-btn" onclick="loadContent('${menu.action}')"><span class="icon">${menu.icon}</span><span>${menu.text}</span></button>`).join('');
+            loadContent(isDepocu ? 'depoStok' : 'kendiStok');
+        }
+
         async function loadContent(action) {
             const contentDiv = document.getElementById('content');
             contentDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
-            
             if (action === 'depoStok') await showDepoStok(contentDiv);
             else if (action === 'kendiStok') await showKendiStok(contentDiv);
             else if (action === 'dagiticiStoklar') await showDagiticiStoklar(contentDiv);
@@ -21,1042 +184,325 @@
             else if (action === 'depoStokDuzenle') showDepoStokDuzenle(contentDiv);
             else if (action === 'hareketler') await showHareketler(contentDiv);
         }
-        
+
         async function showStok(contentDiv, tip, id, baslik, append = false) {
             const result = await apiCall(`/api/stok?tip=${tip}&id=${id}`);
             if (result && result.data) {
-                const stoklar = result.data;
-                const html = `
-                    <div class="card">
-                        <div class="card-title">${baslik}</div>
-                        <table class="stok-table">
-                            <thead><tr><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></tr></thead>
-                            <tbody>
-                                ${stoklar.map(s => `
-                                    <tr>
-                                        <td>${s.stok_kodu}</td>
-                                        <td>${s.palet_adi}</td>
-                                        <td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-                if (append) {
-                    contentDiv.innerHTML += html;
-                } else {
-                    contentDiv.innerHTML = html;
-                }
+                const html = `<div class="card"><div class="card-title">${baslik}</div><table class="stok-table"><thead><tr><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></tr></thead><tbody>${result.data.map(s => `<tr><td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td></tr>`).join('')}</tbody></table></div>`;
+                if (append) contentDiv.innerHTML += html;
+                else contentDiv.innerHTML = html;
             }
         }
-        
-        async function showDepoStok(contentDiv) {
-            await showStok(contentDiv, 'DEPO', 0, '📦 Depo Stoğu');
-        }
-        
-        async function showKendiStok(contentDiv) {
-            await showStok(contentDiv, 'DAGITICI', currentUser.id, '📦 Kendi Stoğunuz');
-        }
-        
+
+        async function showDepoStok(contentDiv) { await showStok(contentDiv, 'DEPO', 0, '📦 Depo Stoğu'); }
+        async function showKendiStok(contentDiv) { await showStok(contentDiv, 'DAGITICI', currentUser.id, '📦 Kendi Stoğunuz'); }
+
         async function showDagiticiStoklar(contentDiv) {
             const result = await apiCall('/api/dagitici_listesi');
             if (result && result.data && result.data.length > 0) {
                 contentDiv.innerHTML = '';
-                for (const d of result.data) {
-                    await showStok(contentDiv, 'DAGITICI', d.id, `${d.ad_soyad} (${d.kullanici_adi})`, true);
-                }
-            } else {
-                contentDiv.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor</div>';
-            }
+                for (const d of result.data) await showStok(contentDiv, 'DAGITICI', d.id, `${d.ad_soyad} (${d.kullanici_adi})`, true);
+            } else contentDiv.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor</div>';
         }
-        
+
         async function showMusteriStoklar(contentDiv) {
             const musteriler = await apiCall('/api/tum_musteriler');
-            
-            if (!musteriler?.data || musteriler.data.length === 0) {
-                contentDiv.innerHTML = '<div class="card">📭 Müşteri bulunmuyor</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">🔍 Müşteri Ara ve Seç</div>
-                    <div class="form-group">
-                        <label>🔎 Müşteri Ara (Kod / Ad / Tabela)</label>
-                        <input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteri()" style="width:100%; padding:12px; font-size:1rem;">
-                    </div>
-                    <div id="musteriListesi" style="max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px;">
-                        ${musteriler.data.map(m => `
-                            <div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSec(this)">
-                                <div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div>
-                                <div style="font-size: 0.8rem; color: #666;">🏷️ ${m.tabela_adi}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div id="musteriIslemler" style="display: none;"></div>
-            `;
+            if (!musteriler?.data || musteriler.data.length === 0) { contentDiv.innerHTML = '<div class="card">📭 Müşteri bulunmuyor</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">🔍 Müşteri Ara ve Seç</div><div class="form-group"><label>🔎 Müşteri Ara (Kod / Ad / Tabela)</label><input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteri()" style="width:100%; padding:12px;"></div><div id="musteriListesi" style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">${musteriler.data.map(m => `<div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSec(this)"><div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div><div style="font-size:0.8rem; color:#666;">🏷️ ${m.tabela_adi}</div></div>`).join('')}</div></div><div id="musteriIslemler" style="display:none;"></div>`;
         }
-        
+
         function filtreleMusteri() {
             const arama = document.getElementById('musteriArama').value.toLowerCase().trim();
-            const items = document.querySelectorAll('.musteri-item');
-            
-            items.forEach(item => {
+            document.querySelectorAll('.musteri-item').forEach(item => {
                 const kod = item.getAttribute('data-kod').toLowerCase();
                 const ad = item.getAttribute('data-ad').toLowerCase();
                 const tabela = item.getAttribute('data-tabela').toLowerCase();
-                
-                if (arama === '' || kod.includes(arama) || ad.includes(arama) || tabela.includes(arama)) {
-                    item.style.display = 'block';
-                } else {
-                    item.style.display = 'none';
-                }
+                item.style.display = (arama === '' || kod.includes(arama) || ad.includes(arama) || tabela.includes(arama)) ? 'block' : 'none';
             });
         }
-        
+
         function musteriSec(element) {
-            document.querySelectorAll('.musteri-item').forEach(item => {
-                item.style.background = '';
-            });
+            document.querySelectorAll('.musteri-item').forEach(item => item.style.background = '');
             element.style.background = '#e3f2fd';
-            
             window.seciliMusteriId = parseInt(element.getAttribute('data-id'));
             window.seciliMusteriAd = element.getAttribute('data-ad');
-            
             const islemlerDiv = document.getElementById('musteriIslemler');
-            
-            islemlerDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">📦 ${window.seciliMusteriAd} - Stok İşlemleri</div>
-                    <button class="btn" onclick="musteriStokGoster()" style="margin-bottom: 10px; background: #2196F3;">📊 Stok Durumunu Gör</button>
-                    <button class="btn" onclick="musteriyePaletVer()" style="margin-bottom: 10px; background: #4caf50;">➡️ Müşteriye Palet Ver</button>
-                    <button class="btn" onclick="musteridenPaletAl()" style="background: #ff9800;">⬅️ Müşteriden Palet Al</button>
-                </div>
-            `;
+            islemlerDiv.innerHTML = `<div class="card"><div class="card-title">📦 ${window.seciliMusteriAd} - Stok İşlemleri</div><button class="btn" onclick="musteriStokGoster()" style="margin-bottom:10px; background:#2196F3;">📊 Stok Durumunu Gör</button><button class="btn" onclick="musteriyePaletVer()" style="margin-bottom:10px; background:#4caf50;">➡️ Müşteriye Palet Ver</button><button class="btn" onclick="musteridenPaletAl()" style="background:#ff9800;">⬅️ Müşteriden Palet Al</button></div>`;
             islemlerDiv.style.display = 'block';
         }
-        
+
         async function musteriStokGoster() {
-            if (!window.seciliMusteriId) {
-                showToast('Lütfen bir müşteri seçin', 'error');
-                return;
-            }
+            if (!window.seciliMusteriId) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             const contentDiv = document.getElementById('content');
             await showStok(contentDiv, 'MUSTERI', window.seciliMusteriId, `📦 ${window.seciliMusteriAd} Stoğu`);
         }
-        
+
         async function musteriyePaletVer() {
-            if (!window.seciliMusteriId) {
-                showToast('Lütfen bir müşteri seçin', 'error');
-                return;
-            }
+            if (!window.seciliMusteriId) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             const paletler = await apiCall('/api/palet_tipleri');
             if (!paletler?.data) return;
-            
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver</div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="musteriTransfer('DAGITICI_MUSTERI')">Palet Ver</button>
-                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top: 10px; background:#9e9e9e;">Geri Dön</button>
-                </div>
-            `;
+            document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="musteriTransfer('DAGITICI_MUSTERI')">Palet Ver</button><button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">Geri Dön</button></div>`;
         }
-        
+
         async function musteridenPaletAl() {
-            if (!window.seciliMusteriId) {
-                showToast('Lütfen bir müşteri seçin', 'error');
-                return;
-            }
+            if (!window.seciliMusteriId) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             const paletler = await apiCall('/api/palet_tipleri');
             if (!paletler?.data) return;
-            
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (İade)</div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="musteriTransfer('MUSTERI_DAGITICI')">Palet Al</button>
-                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top: 10px; background:#9e9e9e;">Geri Dön</button>
-                </div>
-            `;
+            document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (İade)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="musteriTransfer('MUSTERI_DAGITICI')">Palet Al</button><button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">Geri Dön</button></div>`;
         }
-        
+
         async function musteriTransfer(hareketTipi) {
             const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
             const miktar = document.getElementById('miktar')?.value;
-            
-            if (!palet_tipi_id || !miktar || miktar <= 0) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
-            const body = {
-                hareket_tipi: hareketTipi,
-                palet_tipi_id: parseInt(palet_tipi_id),
-                miktar: parseInt(miktar),
-                alici_id: window.seciliMusteriId
-            };
-            
-            const result = await apiCall('/api/transfer', {
-                method: 'POST',
-                body: JSON.stringify(body)
-            });
-            
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok');
-            } else {
-                showToast(result?.data?.hata || 'İşlem başarısız', 'error');
-            }
+            if (!palet_tipi_id || !miktar || miktar <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
+            const result = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify({ hareket_tipi: hareketTipi, palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar), alici_id: window.seciliMusteriId }) });
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok'); }
+            else showToast(result?.data?.hata || 'İşlem başarısız', 'error');
         }
-        
+
         async function showDepoDagiticiTransfer(contentDiv) {
             const dagiticilar = await apiCall('/api/dagitici_listesi');
             const paletler = await apiCall('/api/palet_tipleri');
-            
-            if (!dagiticilar?.data?.length) {
-                contentDiv.innerHTML = '<div class="card">❌ Önce dağıtıcı eklemelisiniz</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">➡️ Depodan Dağıtıcıya Transfer</div>
-                    <div class="form-group">
-                        <label>Dağıtıcı</label>
-                        <select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="transfer('DEPO_DAGITICI')">Transfer Yap</button>
-                </div>
-            `;
+            if (!dagiticilar?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Önce dağıtıcı eklemelisiniz</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">➡️ Depodan Dağıtıcıya Transfer</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DEPO_DAGITICI')">Transfer Yap</button></div>`;
         }
-        
+
         async function showDagiticiIade(contentDiv) {
             const dagiticilar = await apiCall('/api/dagitici_listesi');
             const paletler = await apiCall('/api/palet_tipleri');
-            
-            if (!dagiticilar?.data?.length) {
-                contentDiv.innerHTML = '<div class="card">❌ Dağıtıcı bulunmuyor</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">⬅️ Dağıtıcıdan İade Al</div>
-                    <div class="form-group">
-                        <label>Dağıtıcı</label>
-                        <select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Al</button>
-                </div>
-            `;
+            if (!dagiticilar?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Dağıtıcı bulunmuyor</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">⬅️ Dağıtıcıdan İade Al</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Al</button></div>`;
         }
-        
+
         async function showMusteriyeVer(contentDiv) {
             const musteriler = await apiCall('/api/tum_musteriler');
             const paletler = await apiCall('/api/palet_tipleri');
-            
-            if (!musteriler?.data?.length) {
-                contentDiv.innerHTML = '<div class="card">❌ Müşteri bulunmuyor</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">➡️ Müşteriye Palet Ver</div>
-                    <div class="form-group">
-                        <label>Müşteri</label>
-                        <select id="alici_id">${musteriler.data.map(m => `<option value="${m.id}">${m.musteri_kodu} - ${m.musteri_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="transfer('DAGITICI_MUSTERI')">Transfer Yap</button>
-                </div>
-            `;
+            if (!musteriler?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Müşteri bulunmuyor</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">➡️ Müşteriye Palet Ver</div><div class="form-group"><label>Müşteri</label><select id="alici_id">${musteriler.data.map(m => `<option value="${m.id}">${m.musteri_kodu} - ${m.musteri_adi}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_MUSTERI')">Transfer Yap</button></div>`;
         }
-        
+
         async function showMusteridenAl(contentDiv) {
             const musteriler = await apiCall('/api/tum_musteriler');
             const paletler = await apiCall('/api/palet_tipleri');
-            
-            if (!musteriler?.data?.length) {
-                contentDiv.innerHTML = '<div class="card">❌ Müşteri bulunmuyor</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">⬅️ Müşteriden İade Al</div>
-                    <div class="form-group">
-                        <label>Müşteri</label>
-                        <select id="alici_id">${musteriler.data.map(m => `<option value="${m.id}">${m.musteri_kodu} - ${m.musteri_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="transfer('MUSTERI_DAGITICI')">İade Al</button>
-                </div>
-            `;
+            if (!musteriler?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Müşteri bulunmuyor</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">⬅️ Müşteriden İade Al</div><div class="form-group"><label>Müşteri</label><select id="alici_id">${musteriler.data.map(m => `<option value="${m.id}">${m.musteri_kodu} - ${m.musteri_adi}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('MUSTERI_DAGITICI')">İade Al</button></div>`;
         }
-        
+
         async function showDepoyaIade(contentDiv) {
             const paletler = await apiCall('/api/palet_tipleri');
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">🏭 Depoya İade</div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Yap</button>
-                </div>
-            `;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏭 Depoya İade</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Yap</button></div>`;
         }
-        
+
+        async function transfer(hareketTipi) {
+            const alici_id = document.getElementById('alici_id')?.value;
+            const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
+            const miktar = document.getElementById('miktar')?.value;
+            if (!palet_tipi_id || !miktar || miktar <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
+            const body = { hareket_tipi: hareketTipi, palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar) };
+            if (alici_id) body.alici_id = parseInt(alici_id);
+            const result = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok'); }
+            else showToast(result?.data?.hata || 'Transfer başarısız', 'error');
+        }
+
         function showDagiticiEkle(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">➕ Yeni Dağıtıcı Ekle</div>
-                    <div class="form-group">
-                        <label>Kullanıcı Adı</label>
-                        <input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı">
-                    </div>
-                    <div class="form-group">
-                        <label>Ad Soyad</label>
-                        <input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad">
-                    </div>
-                    <div class="form-group">
-                        <label>Şifre</label>
-                        <input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)">
-                    </div>
-                    <button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button>
-                </div>
-            `;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">➕ Yeni Dağıtıcı Ekle</div><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad"></div><div class="form-group"><label>Şifre</label><input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)"></div><button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button></div>`;
         }
-        
+
         async function yeniDagiticiEkle() {
             const kullanici_adi = document.getElementById('yeni_kullanici_adi').value;
             const ad_soyad = document.getElementById('yeni_ad_soyad').value;
             const sifre = document.getElementById('yeni_sifre').value;
-            
-            if (!kullanici_adi || !ad_soyad || !sifre) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
-            if (sifre.length < 4) {
-                showToast('Şifre en az 4 karakter olmalı', 'error');
-                return;
-            }
-            
-            const result = await apiCall('/api/dagitici_ekle', {
-                method: 'POST',
-                body: JSON.stringify({ kullanici_adi, ad_soyad, sifre })
-            });
-            
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent('kullaniciYonetim');
-            } else {
-                showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
-            }
+            if (!kullanici_adi || !ad_soyad || !sifre) { showToast('Tüm alanları doldurun', 'error'); return; }
+            if (sifre.length < 4) { showToast('Şifre en az 4 karakter olmalı', 'error'); return; }
+            const result = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi, ad_soyad, sifre }) });
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('kullaniciYonetim'); }
+            else showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
         }
-        
+
         function showMusteriEkle(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">👤 Yeni Müşteri Ekle</div>
-                    <div class="form-group">
-                        <label>Müşteri Kodu</label>
-                        <input type="text" id="musteri_kodu" placeholder="Müşteri kodu (benzersiz)">
-                    </div>
-                    <div class="form-group">
-                        <label>Müşteri Adı</label>
-                        <input type="text" id="musteri_adi" placeholder="Müşteri adı">
-                    </div>
-                    <div class="form-group">
-                        <label>Tabela Adı</label>
-                        <input type="text" id="tabela_adi" placeholder="İşletme/Tablet adı">
-                    </div>
-                    <button class="btn" onclick="yeniMusteriEkle()">Kaydet</button>
-                </div>
-            `;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu" placeholder="Müşteri kodu (benzersiz)"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi" placeholder="Müşteri adı"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi" placeholder="İşletme/Tablet adı"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button></div>`;
         }
-        
+
         async function yeniMusteriEkle() {
             const musteri_kodu = document.getElementById('musteri_kodu').value;
             const musteri_adi = document.getElementById('musteri_adi').value;
             const tabela_adi = document.getElementById('tabela_adi').value;
-            
-            if (!musteri_kodu || !musteri_adi || !tabela_adi) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
-            const result = await apiCall('/api/musteri_ekle', {
-                method: 'POST',
-                body: JSON.stringify({ musteri_kodu, musteri_adi, tabela_adi })
-            });
-            
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent('musteriStoklar');
-            } else {
-                showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
-            }
+            if (!musteri_kodu || !musteri_adi || !tabela_adi) { showToast('Tüm alanları doldurun', 'error'); return; }
+            const result = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu, musteri_adi, tabela_adi }) });
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('musteriStoklar'); }
+            else showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
         }
-        
+
         async function showPaletTipleri(contentDiv) {
             const paletler = await apiCall('/api/palet_tipleri');
-            
-            if (!paletler?.data) {
-                contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">🏷️ Palet Tipleri Yönetimi</div>
-                    <button class="btn" style="margin-bottom: 16px; background: #4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button>
-                    <table class="stok-table">
-                        <thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></tr></thead>
-                        <tbody>
-                            ${paletler.data.map(p => `
-                                <tr>
-                                    <td>${p.id}</td>
-                                    <td>${p.stok_kodu}</td>
-                                    <td>${p.palet_adi}</td>
-                                    <td>
-                                        <button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button>
-                                        <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                <div id="paletModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
-                    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;">
-                        <h3 id="modalTitle" style="margin-bottom:16px;">Yeni Palet Tipi</h3>
-                        <div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu" placeholder="Örn: P004"></div>
-                        <div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi" placeholder="Örn: Metal Palet"></div>
-                        <input type="hidden" id="palet_id">
-                        <div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetPaletTipi()" style="flex:1;">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()" style="flex:1;">İptal</button></div>
-                    </div>
-                </div>
-            `;
+            if (!paletler?.data) { contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></tr></thead><tbody>${paletler.data.map(p => `<tr><td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="paletModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu" placeholder="Örn: P004"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi" placeholder="Örn: Metal Palet"></div><input type="hidden" id="palet_id"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`;
         }
-        
-        function showYeniPaletTipiModal() {
-            document.getElementById('modalTitle').innerText = 'Yeni Palet Tipi';
-            document.getElementById('stok_kodu').value = '';
-            document.getElementById('palet_adi').value = '';
-            document.getElementById('palet_id').value = '';
-            document.getElementById('paletModal').style.display = 'flex';
-        }
-        
-        function duzenlePaletTipi(id, stok_kodu, palet_adi) {
-            document.getElementById('modalTitle').innerText = 'Palet Tipi Düzenle';
-            document.getElementById('stok_kodu').value = stok_kodu;
-            document.getElementById('palet_adi').value = palet_adi;
-            document.getElementById('palet_id').value = id;
-            document.getElementById('paletModal').style.display = 'flex';
-        }
-        
-        function kapatModal() {
-            document.getElementById('paletModal').style.display = 'none';
-        }
-        
+
+        function showYeniPaletTipiModal() { document.getElementById('modalTitle').innerText = 'Yeni Palet Tipi'; document.getElementById('stok_kodu').value = ''; document.getElementById('palet_adi').value = ''; document.getElementById('palet_id').value = ''; document.getElementById('paletModal').style.display = 'flex'; }
+        function duzenlePaletTipi(id, stok_kodu, palet_adi) { document.getElementById('modalTitle').innerText = 'Palet Tipi Düzenle'; document.getElementById('stok_kodu').value = stok_kodu; document.getElementById('palet_adi').value = palet_adi; document.getElementById('palet_id').value = id; document.getElementById('paletModal').style.display = 'flex'; }
+        function kapatModal() { document.getElementById('paletModal').style.display = 'none'; }
+
         async function kaydetPaletTipi() {
             const id = document.getElementById('palet_id').value;
             const stok_kodu = document.getElementById('stok_kodu').value;
             const palet_adi = document.getElementById('palet_adi').value;
-            
-            if (!stok_kodu || !palet_adi) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
+            if (!stok_kodu || !palet_adi) { showToast('Tüm alanları doldurun', 'error'); return; }
             let result;
-            if (id) {
-                result = await apiCall('/api/palet_tipi_duzenle', {
-                    method: 'PUT',
-                    body: JSON.stringify({ id: parseInt(id), stok_kodu, palet_adi })
-                });
-            } else {
-                result = await apiCall('/api/palet_tipi_ekle', {
-                    method: 'POST',
-                    body: JSON.stringify({ stok_kodu, palet_adi })
-                });
-            }
-            
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                kapatModal();
-                loadContent('paletTipleri');
-            } else {
-                showToast(result?.data?.hata || 'İşlem başarısız', 'error');
-            }
+            if (id) result = await apiCall('/api/palet_tipi_duzenle', { method: 'PUT', body: JSON.stringify({ id: parseInt(id), stok_kodu, palet_adi }) });
+            else result = await apiCall('/api/palet_tipi_ekle', { method: 'POST', body: JSON.stringify({ stok_kodu, palet_adi }) });
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); kapatModal(); loadContent('paletTipleri'); }
+            else showToast(result?.data?.hata || 'İşlem başarısız', 'error');
         }
-        
-        async function silPaletTipi(id) {
-            if (!confirm('Bu palet tipini silmek istediğinize emin misiniz? Stokta palet varsa silinemez!')) return;
-            const result = await apiCall(`/api/palet_tipi_sil?id=${id}`, { method: 'DELETE' });
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent('paletTipleri');
-            } else {
-                showToast(result?.data?.hata || 'Silme başarısız', 'error');
-            }
-        }
-        
+
+        async function silPaletTipi(id) { if (!confirm('Bu palet tipini silmek istediğinize emin misiniz? Stokta palet varsa silinemez!')) return; const result = await apiCall(`/api/palet_tipi_sil?id=${id}`, { method: 'DELETE' }); if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('paletTipleri'); } else showToast(result?.data?.hata || 'Silme başarısız', 'error'); }
+
         async function showKullaniciYonetim(contentDiv) {
             const kullanicilar = await apiCall('/api/kullanici_listesi');
-            if (!kullanicilar?.data) {
-                contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>';
-                return;
-            }
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div>
-                    <button class="btn" style="margin-bottom: 16px; background: #4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button>
-                    <table class="stok-table">
-                        <thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th> </thead>
-                        <tbody>
-                            ${kullanicilar.data.map(k => `
-                                <tr>
-                                    <td>${k.id}  \n                                    <td>${k.kullanici_adi}  \n                                    <td>${k.ad_soyad}  \n                                    <td>
-                                        <button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button>
-                                        <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button>
-                                     \n                                 \n                            `).join('')}
-                        </tbody>
-                    \n                </div>
-                <div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
-                    <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;">
-                        <h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3>
-                        <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div>
-                        <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
-                        <div class="form-group"><label>Yeni Şifre (boş bırak değişmesin)</label><input type="password" id="kullanici_sifre"></div>
-                        <input type="hidden" id="kullanici_id_duzenle">
-                        <div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div>
-                    </div>
-                </div>
-            `;
+            if (!kullanicilar?.data) { contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></tr></thead><tbody>${kullanicilar.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre (boş bırak değişmesin)</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`;
         }
-        
-        function showYeniKullaniciModal() {
-            document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle';
-            document.getElementById('kullanici_adi_duzenle').value = '';
-            document.getElementById('ad_soyad_duzenle').value = '';
-            document.getElementById('kullanici_sifre').value = '';
-            document.getElementById('kullanici_id_duzenle').value = '';
-            document.getElementById('kullaniciModal').style.display = 'flex';
-        }
-        
-        function duzenleKullanici(id, kullanici_adi, ad_soyad) {
-            document.getElementById('kullaniciModalTitle').innerText = 'Dağıtıcı Düzenle';
-            document.getElementById('kullanici_adi_duzenle').value = kullanici_adi;
-            document.getElementById('ad_soyad_duzenle').value = ad_soyad;
-            document.getElementById('kullanici_sifre').value = '';
-            document.getElementById('kullanici_id_duzenle').value = id;
-            document.getElementById('kullaniciModal').style.display = 'flex';
-        }
-        
-        function kapatKullaniciModal() {
-            document.getElementById('kullaniciModal').style.display = 'none';
-        }
-        
+
+        function showYeniKullaniciModal() { document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle'; document.getElementById('kullanici_adi_duzenle').value = ''; document.getElementById('ad_soyad_duzenle').value = ''; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = ''; document.getElementById('kullaniciModal').style.display = 'flex'; }
+        function duzenleKullanici(id, kullanici_adi, ad_soyad) { document.getElementById('kullaniciModalTitle').innerText = 'Dağıtıcı Düzenle'; document.getElementById('kullanici_adi_duzenle').value = kullanici_adi; document.getElementById('ad_soyad_duzenle').value = ad_soyad; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = id; document.getElementById('kullaniciModal').style.display = 'flex'; }
+        function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
+
         async function kaydetKullanici() {
             const id = document.getElementById('kullanici_id_duzenle').value;
             const kullanici_adi = document.getElementById('kullanici_adi_duzenle').value;
             const ad_soyad = document.getElementById('ad_soyad_duzenle').value;
             const sifre = document.getElementById('kullanici_sifre').value;
-            
-            if (!kullanici_adi || !ad_soyad) {
-                showToast('Kullanıcı adı ve ad soyad gerekli', 'error');
-                return;
-            }
-            
-            if (!id && (!sifre || sifre.length < 4)) {
-                showToast('Yeni kullanıcı için şifre en az 4 karakter olmalı', 'error');
-                return;
-            }
-            
-            if (id) {
-                const body = { id: parseInt(id), kullanici_adi, ad_soyad };
-                if (sifre) body.sifre = sifre;
-                const result = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) });
-                if (result && result.status === 200 && result.data.success) {
-                    showToast(result.data.mesaj);
-                    kapatKullaniciModal();
-                    loadContent('kullaniciYonetim');
-                } else {
-                    showToast(result?.data?.hata || 'İşlem başarısız', 'error');
-                }
-            } else {
-                const result = await apiCall('/api/dagitici_ekle', {
-                    method: 'POST',
-                    body: JSON.stringify({ kullanici_adi, ad_soyad, sifre })
-                });
-                if (result && result.status === 200 && result.data.success) {
-                    showToast(result.data.mesaj);
-                    kapatKullaniciModal();
-                    loadContent('kullaniciYonetim');
-                } else {
-                    showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
-                }
-            }
+            if (!kullanici_adi || !ad_soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; }
+            if (!id && (!sifre || sifre.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter olmalı', 'error'); return; }
+            let result;
+            if (id) { const body = { id: parseInt(id), kullanici_adi, ad_soyad }; if (sifre) body.sifre = sifre; result = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) }); }
+            else { result = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi, ad_soyad, sifre }) }); }
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); kapatKullaniciModal(); loadContent('kullaniciYonetim'); }
+            else showToast(result?.data?.hata || 'İşlem başarısız', 'error');
         }
-        
-        async function silKullanici(id) {
-            if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
-            const result = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' });
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent('kullaniciYonetim');
-            } else {
-                showToast(result?.data?.hata || 'Silme başarısız', 'error');
-            }
-        }
-        
+
+        async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return; const result = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('kullaniciYonetim'); } else showToast(result?.data?.hata || 'Silme başarısız', 'error'); }
+
         function showExcelYukle(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">📂 Excel'den Müşteri Yükle</div>
-                    <div class="form-group">
-                        <label>Excel Dosyası Seçin</label>
-                        <input type="file" id="excelFile" accept=".xlsx, .xls">
-                    </div>
-                    <div class="form-group">
-                        <div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;">
-                            <strong>Excel Formatı:</strong><br>
-                            • MÜŞTERİ KODU<br>
-                            • MÜŞTERİ ADI<br>
-                            • TABELA ADI (müşterinin işletme adı)<br>
-                            <br>
-                            <strong>Örnek:</strong><br>
-                            MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>
-                            001 | Selim Kuş | ABC Market<br>
-                            002 | Mehmet Demir | XYZ Ltd<br>
-                            <br>
-                            <strong>Not:</strong> Aynı müşteri kodu varsa güncellenir, yoksa eklenir.
-                        </div>
-                    </div>
-                    <button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button>
-                    <div id="excelSonuc" style="margin-top:16px;"></div>
-                </div>
-            `;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">📂 Excel'den Müşteri Yükle</div><div class="form-group"><label>Excel Dosyası Seçin</label><input type="file" id="excelFile" accept=".xlsx, .xls"></div><div class="form-group"><div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;"><strong>Excel Formatı:</strong><br>• MÜŞTERİ KODU<br>• MÜŞTERİ ADI<br>• TABELA ADI (müşterinin işletme adı)<br><br><strong>Örnek:</strong><br>MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>001 | Selim Kuş | ABC Market<br>002 | Mehmet Demir | XYZ Ltd<br><br><strong>Not:</strong> Aynı müşteri kodu varsa güncellenir, yoksa eklenir.</div></div><button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button><div id="excelSonuc" style="margin-top:16px;"></div></div>`;
         }
-        
+
         async function excelYukle() {
-            const fileInput = document.getElementById('excelFile');
-            const file = fileInput.files[0];
+            const file = document.getElementById('excelFile').files[0];
             if (!file) { showToast('Lütfen bir dosya seçin', 'error'); return; }
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            const sonucDiv = document.getElementById('excelSonuc');
-            sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
-            
+            const formData = new FormData(); formData.append('file', file);
+            const sonucDiv = document.getElementById('excelSonuc'); sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
             try {
-                const response = await fetch(`${API_URL}/api/musteri_excel_yukle`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData
-                });
+                const response = await fetch(`${API_URL}/api/musteri_excel_yukle`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
                 const result = await response.json();
-                
                 if (result.success) {
                     let html = `<div style="background:#4caf50; color:white; padding:12px; border-radius:8px;">✅ ${result.mesaj}</div>`;
-                    if (result.eklenen > 0) {
-                        html += `<div style="margin-top:8px;">📝 Yeni eklenen: ${result.eklenen} müşteri</div>`;
-                    }
-                    if (result.guncellenen > 0) {
-                        html += `<div style="margin-top:8px;">🔄 Güncellenen: ${result.guncellenen} müşteri</div>`;
-                    }
-                    if (result.hatalar && result.hatalar.length > 0) {
-                        html += `<div style="margin-top:12px; background:#ffebee; padding:12px; border-radius:8px;"><strong>⚠️ Hatalar:</strong><br>${result.hatalar.map(h => `• ${h}`).join('<br>')}</div>`;
-                    }
-                    sonucDiv.innerHTML = html;
-                    showToast(result.mesaj);
-                } else {
-                    sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ ${result.hata}</div>`;
-                    showToast(result.hata, 'error');
-                }
-            } catch (error) {
-                sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ Yükleme hatası: ${error.message}</div>`;
-                showToast('Yükleme hatası', 'error');
-            }
+                    if (result.eklenen > 0) html += `<div style="margin-top:8px;">📝 Yeni eklenen: ${result.eklenen} müşteri</div>`;
+                    if (result.guncellenen > 0) html += `<div style="margin-top:8px;">🔄 Güncellenen: ${result.guncellenen} müşteri</div>`;
+                    if (result.hatalar && result.hatalar.length > 0) html += `<div style="margin-top:12px; background:#ffebee; padding:12px; border-radius:8px;"><strong>⚠️ Hatalar:</strong><br>${result.hatalar.map(h => `• ${h}`).join('<br>')}</div>`;
+                    sonucDiv.innerHTML = html; showToast(result.mesaj);
+                } else { sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ ${result.hata}</div>`; showToast(result.hata, 'error'); }
+            } catch (error) { sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ Yükleme hatası: ${error.message}</div>`; showToast('Yükleme hatası', 'error'); }
         }
-        
+
         function showExcelExport(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">📤 Veri Dışa Aktarma (Excel)</div>
-                    <div class="form-group">
-                        <label>Rapor Tipi</label>
-                        <select id="export_tipi">
-                            <option value="hareketler">📋 Hareketler</option>
-                            <option value="stoklar">📦 Stoklar (Depo, Dağıtıcı, Müşteri)</option>
-                            <option value="musteriler">🏪 Müşteri Listesi</option>
-                        </select>
-                    </div>
-                    <div id="tarihSecim" style="display:none;">
-                        <div class="form-group">
-                            <label>Başlangıç Tarihi</label>
-                            <input type="date" id="export_baslangic">
-                        </div>
-                        <div class="form-group">
-                            <label>Bitiş Tarihi</label>
-                            <input type="date" id="export_bitis">
-                        </div>
-                    </div>
-                    <button class="btn" onclick="excelExportYap()" style="background:#4caf50;">Excel Olarak İndir</button>
-                </div>
-            `;
-            
-            document.getElementById('export_tipi').addEventListener('change', function() {
-                const tarihSecim = document.getElementById('tarihSecim');
-                if (this.value === 'hareketler') {
-                    tarihSecim.style.display = 'block';
-                } else {
-                    tarihSecim.style.display = 'none';
-                }
-            });
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">📤 Veri Dışa Aktarma (Excel)</div><div class="form-group"><label>Rapor Tipi</label><select id="export_tipi"><option value="hareketler">📋 Hareketler</option><option value="stoklar">📦 Stoklar (Depo, Dağıtıcı, Müşteri)</option><option value="musteriler">🏪 Müşteri Listesi</option></select></div><div id="tarihSecim" style="display:none;"><div class="form-group"><label>Başlangıç Tarihi</label><input type="date" id="export_baslangic"></div><div class="form-group"><label>Bitiş Tarihi</label><input type="date" id="export_bitis"></div></div><button class="btn" onclick="excelExportYap()" style="background:#4caf50;">Excel Olarak İndir</button></div>`;
+            document.getElementById('export_tipi').addEventListener('change', function() { document.getElementById('tarihSecim').style.display = this.value === 'hareketler' ? 'block' : 'none'; });
         }
-        
+
         async function excelExportYap() {
             const rapor_tipi = document.getElementById('export_tipi').value;
             let body = { rapor_tipi: rapor_tipi };
-            
             if (rapor_tipi === 'hareketler') {
                 const baslangic = document.getElementById('export_baslangic').value;
                 const bitis = document.getElementById('export_bitis').value;
-                if (!baslangic || !bitis) {
-                    showToast('Tarih aralığı seçin', 'error');
-                    return;
-                }
-                body.baslangic_tarihi = baslangic;
-                body.bitis_tarihi = bitis;
+                if (!baslangic || !bitis) { showToast('Tarih aralığı seçin', 'error'); return; }
+                body.baslangic_tarihi = baslangic; body.bitis_tarihi = bitis;
             }
-            
-            const response = await fetch(`${API_URL}/api/rapor/export`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(body)
-            });
-            
+            const response = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
             if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const tarih = new Date().toISOString().slice(0,10);
-                a.download = `${rapor_tipi}_raporu_${tarih}.xlsx`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                showToast('Excel dosyası indiriliyor');
-            } else {
-                showToast('Rapor oluşturulamadı', 'error');
-            }
+                const blob = await response.blob(); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${rapor_tipi}_raporu.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url); showToast('Excel dosyası indiriliyor');
+            } else showToast('Rapor oluşturulamadı', 'error');
         }
-        
+
         async function showRaporlar(contentDiv) {
             const istatistikler = await apiCall('/api/rapor/istatistikler');
-            
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">📊 İstatistikler</div>
-                    <div id="istatistikler"></div>
-                </div>
-                <div class="card">
-                    <div class="card-title">📅 Tarih Aralığı Raporu</div>
-                    <div class="form-group">
-                        <label>Başlangıç Tarihi</label>
-                        <input type="date" id="baslangic_tarihi">
-                    </div>
-                    <div class="form-group">
-                        <label>Bitiş Tarihi</label>
-                        <input type="date" id="bitis_tarihi">
-                    </div>
-                    <button class="btn" onclick="tarihRaporuGoster()" style="background:#4caf50;">Raporu Göster</button>
-                    <button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel'e Aktar</button>
-                    <div id="tarihRaporuSonuc" style="margin-top:16px;"></div>
-                </div>
-            `;
-            
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">📊 İstatistikler</div><div id="istatistikler"></div></div><div class="card"><div class="card-title">📅 Tarih Aralığı Raporu</div><div class="form-group"><label>Başlangıç Tarihi</label><input type="date" id="baslangic_tarihi"></div><div class="form-group"><label>Bitiş Tarihi</label><input type="date" id="bitis_tarihi"></div><button class="btn" onclick="tarihRaporuGoster()" style="background:#4caf50;">Raporu Göster</button><button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel'e Aktar</button><div id="tarihRaporuSonuc" style="margin-top:16px;"></div></div>`;
             if (istatistikler && istatistikler.data) {
                 const data = istatistikler.data;
                 let html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>';
                 if (data.en_cok_transfer_yapan && data.en_cok_transfer_yapan.length > 0) {
                     html += '<table class="stok-table"><thead><tr><th>Dağıtıcı</th><th>Transfer Sayısı</th></tr></thead><tbody>';
-                    for (const d of data.en_cok_transfer_yapan) {
-                        html += `<tr><td>${d.ad_soyad}</td><td>${d.transfer_sayisi}</td></tr>`;
-                    }
+                    for (const d of data.en_cok_transfer_yapan) html += `<tr><td>${d.ad_soyad}</td><td>${d.transfer_sayisi}</td></tr>`;
                     html += '</tbody></table>';
-                } else {
-                    html += '<p>Henüz transfer yok</p>';
-                }
-                
+                } else html += '<p>Henüz transfer yok</p>';
                 html += '<h3 style="margin-top:16px;">📦 En Çok Kullanılan Palet Tipleri</h3>';
                 if (data.en_cok_kullanilan_palet && data.en_cok_kullanilan_palet.length > 0) {
                     html += '<table class="stok-table"><thead><tr><th>Palet Tipi</th><th>Kullanım Sayısı</th><th>Toplam Miktar</th></tr></thead><tbody>';
-                    for (const p of data.en_cok_kullanilan_palet) {
-                        html += `<tr><td>${p.palet_adi}</td><td>${p.kullanim_sayisi}</td><td>${p.toplam_miktar}</td></tr>`;
-                    }
+                    for (const p of data.en_cok_kullanilan_palet) html += `<tr><td>${p.palet_adi}</td><td>${p.kullanim_sayisi}</td><td>${p.toplam_miktar}</td></tr>`;
                     html += '</tbody></table>';
-                } else {
-                    html += '<p>Henüz hareket yok</p>';
-                }
-                
+                } else html += '<p>Henüz hareket yok</p>';
                 document.getElementById('istatistikler').innerHTML = html;
             }
         }
-        
+
         async function tarihRaporuGoster() {
             const baslangic = document.getElementById('baslangic_tarihi').value;
             const bitis = document.getElementById('bitis_tarihi').value;
-            
-            if (!baslangic || !bitis) {
-                showToast('Tarih aralığı seçin', 'error');
-                return;
-            }
-            
-            const sonucDiv = document.getElementById('tarihRaporuSonuc');
-            sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
-            
-            const result = await apiCall('/api/rapor/hareketler', {
-                method: 'POST',
-                body: JSON.stringify({ baslangic_tarihi: baslangic, bitis_tarihi: bitis })
-            });
-            
+            if (!baslangic || !bitis) { showToast('Tarih aralığı seçin', 'error'); return; }
+            const sonucDiv = document.getElementById('tarihRaporuSonuc'); sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+            const result = await apiCall('/api/rapor/hareketler', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: baslangic, bitis_tarihi: bitis }) });
             if (result && result.data) {
-                if (result.data.length === 0) {
-                    sonucDiv.innerHTML = '<div class="card">📭 Bu tarih aralığında hareket yok</div>';
-                    return;
-                }
-                
+                if (result.data.length === 0) { sonucDiv.innerHTML = '<div class="card">📭 Bu tarih aralığında hareket yok</div>'; return; }
                 let html = `<div class="card"><div class="card-title">📋 ${baslangic} - ${bitis} Tarihleri Arası Hareketler</div>`;
-                for (const h of result.data) {
-                    html += `
-                        <div class="hareket-item">
-                            <div class="tarih">${h.tarih}</div>
-                            <div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div>
-                            <div class="detay">👤 ${h.yapan}</div>
-                            ${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}
-                        </div>
-                    `;
-                }
-                html += '</div>';
-                sonucDiv.innerHTML = html;
+                for (const h of result.data) html += `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}</div>`;
+                html += '</div>'; sonucDiv.innerHTML = html;
             }
         }
-        
+
         async function tarihRaporuExport() {
             const baslangic = document.getElementById('baslangic_tarihi').value;
             const bitis = document.getElementById('bitis_tarihi').value;
-            
-            if (!baslangic || !bitis) {
-                showToast('Tarih aralığı seçin', 'error');
-                return;
-            }
-            
-            const response = await fetch(`${API_URL}/api/rapor/export`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ rapor_tipi: 'hareketler', baslangic_tarihi: baslangic, bitis_tarihi: bitis })
-            });
-            
+            if (!baslangic || !bitis) { showToast('Tarih aralığı seçin', 'error'); return; }
+            const response = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ rapor_tipi: 'hareketler', baslangic_tarihi: baslangic, bitis_tarihi: bitis }) });
             if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `hareket_raporu_${baslangic}_${bitis}.xlsx`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                showToast('Excel raporu indiriliyor');
-            } else {
-                showToast('Rapor oluşturulamadı', 'error');
-            }
+                const blob = await response.blob(); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `hareket_raporu_${baslangic}_${bitis}.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url); showToast('Excel raporu indiriliyor');
+            } else showToast('Rapor oluşturulamadı', 'error');
         }
-        
+
         function showDepoStokDuzenle(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">✏️ Depo Stok Düzenle</div>
-                    <div class="form-group">
-                        <label>İşlem Tipi</label>
-                        <select id="islem_tipi" onchange="aciklamaPlaceholder()">
-                            <option value="arttir">📈 Stok Arttır</option>
-                            <option value="azalt">📉 Stok Azalt</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Palet Tipi</label>
-                        <select id="palet_tipi_id"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Miktar</label>
-                        <input type="number" id="miktar" placeholder="Miktar">
-                    </div>
-                    <div class="form-group">
-                        <label>Açıklama / Sebep</label>
-                        <input type="text" id="aciklama" placeholder="Neden arttırılıyor/azaltılıyor?">
-                    </div>
-                    <button class="btn" onclick="depoStokHareket()">İşlemi Gerçekleştir</button>
-                </div>
-            `;
-            
-            apiCall('/api/palet_tipleri').then(result => {
-                if (result && result.data) {
-                    const select = document.getElementById('palet_tipi_id');
-                    select.innerHTML = result.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('');
-                }
-            });
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">✏️ Depo Stok Düzenle</div><div class="form-group"><label>İşlem Tipi</label><select id="islem_tipi" onchange="aciklamaPlaceholder()"><option value="arttir">📈 Stok Arttır</option><option value="azalt">📉 Stok Azalt</option></select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id"></select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><div class="form-group"><label>Açıklama / Sebep</label><input type="text" id="aciklama" placeholder="Neden arttırılıyor/azaltılıyor?"></div><button class="btn" onclick="depoStokHareket()">İşlemi Gerçekleştir</button></div>`;
+            apiCall('/api/palet_tipleri').then(result => { if (result && result.data) document.getElementById('palet_tipi_id').innerHTML = result.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join(''); });
         }
-        
+
         function aciklamaPlaceholder() {
             const islem = document.getElementById('islem_tipi').value;
-            const aciklama = document.getElementById('aciklama');
-            if (islem === 'arttir') {
-                aciklama.placeholder = 'Örn: Yeni sipariş geldi, Sayım farkı, İade vb.';
-            } else {
-                aciklama.placeholder = 'Örn: Üretimde kullanıldı, Hasarlı çıktı, Sevkiyat vb.';
-            }
+            document.getElementById('aciklama').placeholder = islem === 'arttir' ? 'Örn: Yeni sipariş geldi, Sayım farkı, İade vb.' : 'Örn: Üretimde kullanıldı, Hasarlı çıktı, Sevkiyat vb.';
         }
-        
+
         async function depoStokHareket() {
             const palet_tipi_id = document.getElementById('palet_tipi_id').value;
             const miktar = document.getElementById('miktar').value;
             const islem_tipi = document.getElementById('islem_tipi').value;
             const aciklama = document.getElementById('aciklama').value;
-            
-            if (!palet_tipi_id || !miktar || miktar <= 0) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
-            if (!aciklama) {
-                showToast('Açıklama giriniz', 'error');
-                return;
-            }
-            
-            const result = await apiCall('/api/depo_stok_hareket', {
-                method: 'POST',
-                body: JSON.stringify({ palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar), islem_tipi, aciklama })
-            });
-            
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent('depoStok');
-            } else {
-                showToast(result?.data?.hata || 'İşlem başarısız', 'error');
-            }
+            if (!palet_tipi_id || !miktar || miktar <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
+            if (!aciklama) { showToast('Açıklama giriniz', 'error'); return; }
+            const result = await apiCall('/api/depo_stok_hareket', { method: 'POST', body: JSON.stringify({ palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar), islem_tipi, aciklama }) });
+            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('depoStok'); }
+            else showToast(result?.data?.hata || 'İşlem başarısız', 'error');
         }
-        
+
         async function showHareketler(contentDiv) {
             const result = await apiCall('/api/hareketler');
-            if (result && result.data && result.data.length > 0) {
-                contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}</div>`).join('')}</div>`;
-            } else {
-                contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok</div>';
-            }
+            if (result && result.data && result.data.length > 0) contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}</div>`).join('')}</div>`;
+            else contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok</div>';
         }
-        
-        async function transfer(hareketTipi) {
-            const alici_id = document.getElementById('alici_id')?.value;
-            const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
-            const miktar = document.getElementById('miktar')?.value;
-            
-            if (!palet_tipi_id || !miktar || miktar <= 0) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
-            const body = { hareket_tipi: hareketTipi, palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar) };
-            if (alici_id) body.alici_id = parseInt(alici_id);
-            
-            const result = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-            
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok');
-            } else {
-                showToast(result?.data?.hata || 'Transfer başarısız', 'error');
-            }
-        }
-        
+
         const savedToken = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user');
-        if (savedToken && savedUser) {
-            token = savedToken;
-            currentUser = JSON.parse(savedUser);
-            renderMain();
-        } else {
-            renderLogin();
-        }
+        if (savedToken && savedUser) { token = savedToken; currentUser = JSON.parse(savedUser); renderMain(); }
+        else renderLogin();
     </script>
 </body>
 </html>
