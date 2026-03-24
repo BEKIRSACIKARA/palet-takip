@@ -1373,7 +1373,24 @@ def musteri_excel_yukle(current_user):
         'hatalar': hatalar,
         'mesaj': mesaj
     })
-
+@app.route('/api/temizlik', methods=['GET'])
+@token_required
+def temizlik(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Sorunlu stokları sil
+    cursor.execute("DELETE FROM stoklar WHERE stok_sahibi_tip = 'MUSTERI' AND stok_sahibi_id = 0")
+    silinen = cursor.rowcount
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'success': True, 'silinen': silinen, 'mesaj': f'{silinen} sorunlu kayıt silindi'})
 
 # ==================== UYGULAMA BAŞLATMA ====================
 
