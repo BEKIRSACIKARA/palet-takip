@@ -44,7 +44,6 @@ def get_db_connection():
     """Veritabanı bağlantısı - PostgreSQL veya SQLite"""
     database_url = os.environ.get('DATABASE_URL')
     if database_url:
-        # PostgreSQL (Render)
         urllib.parse.uses_netloc.append('postgres')
         url = urllib.parse.urlparse(database_url)
         conn = psycopg2.connect(
@@ -56,7 +55,6 @@ def get_db_connection():
         )
         return conn
     else:
-        # SQLite (geliştirme için)
         import sqlite3
         conn = sqlite3.connect('palet_takip.db')
         conn.row_factory = sqlite3.Row
@@ -155,12 +153,12 @@ def veritabani_olustur():
     for palet in palet_ids:
         cursor.execute('''
             INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-            SELECT %s, %s, %s, %s
+            SELECT %s, %s, %s, 0
             WHERE NOT EXISTS (
                 SELECT 1 FROM stoklar 
                 WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
             )
-        ''', ('DEPO', 0, palet[0], 0, 'DEPO', 0, palet[0]))
+        ''', ('DEPO', 0, palet[0], 'DEPO', 0, palet[0]))
     
     conn.commit()
     cursor.close()
@@ -183,16 +181,30 @@ def stok_miktari_getir(stok_sahibi_tip, stok_sahibi_id, palet_tipi_id):
 def stok_guncelle(stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, degisim):
     conn = get_db_connection()
     cursor = conn.cursor()
-    mevcut = stok_miktari_getir(stok_sahibi_tip, stok_sahibi_id, palet_tipi_id)
-    yeni_miktar = mevcut + degisim
-    if yeni_miktar < 0:
-        cursor.close()
-        conn.close()
-        return False, "Stok yetersiz!"
+    
     cursor.execute('''
-        UPDATE stoklar SET miktar = %s
+        SELECT id, miktar FROM stoklar
         WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
-    ''', (yeni_miktar, stok_sahibi_tip, stok_sahibi_id, palet_tipi_id))
+    ''', (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id))
+    mevcut = cursor.fetchone()
+    
+    if mevcut:
+        yeni_miktar = mevcut[1] + degisim
+        if yeni_miktar < 0:
+            cursor.close()
+            conn.close()
+            return False, "Stok yetersiz!"
+        cursor.execute('UPDATE stoklar SET miktar = %s WHERE id = %s', (yeni_miktar, mevcut[0]))
+    else:
+        if degisim < 0:
+            cursor.close()
+            conn.close()
+            return False, "Stok kaydı bulunamadı!"
+        cursor.execute('''
+            INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
+            VALUES (%s, %s, %s, %s)
+        ''', (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, degisim))
+    
     conn.commit()
     cursor.close()
     conn.close()
@@ -407,17 +419,23 @@ def dagitici_ekle(current_user):
         cursor.execute('''
             INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad)
             VALUES (%s, %s, %s, %s)
+            RETURNING id
         ''', (kullanici_adi, hash_sifre(sifre), 'DAGITICI', ad_soyad))
         
-        dagitici_id = cursor.lastrowid
+        dagitici_id = cursor.fetchone()[0]
         
         cursor.execute("SELECT id FROM palet_tipleri")
         paletler = cursor.fetchall()
         for palet in paletler:
             cursor.execute('''
                 INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-                VALUES (%s, %s, %s, 0)
-            ''', (SAHIP_TIP_DAGITICI, dagitici_id, palet[0]))
+                SELECT %s, %s, %s, 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM stoklar 
+                    WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+                )
+            ''', (SAHIP_TIP_DAGITICI, dagitici_id, palet[0],
+                  SAHIP_TIP_DAGITICI, dagitici_id, palet[0]))
         
         conn.commit()
         cursor.close()
@@ -454,17 +472,23 @@ def musteri_ekle(current_user):
         cursor.execute('''
             INSERT INTO musteriler (musteri_kodu, musteri_adi, tabela_adi)
             VALUES (%s, %s, %s)
+            RETURNING id
         ''', (musteri_kodu, musteri_adi, tabela_adi))
         
-        musteri_id = cursor.lastrowid
+        musteri_id = cursor.fetchone()[0]
         
         cursor.execute("SELECT id FROM palet_tipleri")
         paletler = cursor.fetchall()
         for palet in paletler:
             cursor.execute('''
                 INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-                VALUES (%s, %s, %s, 0)
-            ''', (SAHIP_TIP_MUSTERI, musteri_id, palet[0]))
+                SELECT %s, %s, %s, 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM stoklar 
+                    WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+                )
+            ''', (SAHIP_TIP_MUSTERI, musteri_id, palet[0],
+                  SAHIP_TIP_MUSTERI, musteri_id, palet[0]))
         
         conn.commit()
         cursor.close()
@@ -570,30 +594,44 @@ def palet_tipi_ekle(current_user):
         cursor.execute('''
             INSERT INTO palet_tipleri (stok_kodu, palet_adi)
             VALUES (%s, %s)
+            RETURNING id
         ''', (stok_kodu, palet_adi))
         
-        palet_tipi_id = cursor.lastrowid
+        palet_tipi_id = cursor.fetchone()[0]
         
+        # Tüm stok sahipleri için bu palet tipini ekle
         cursor.execute('''
             INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-            VALUES (%s, %s, %s, 0)
-        ''', (SAHIP_TIP_DEPO, 0, palet_tipi_id))
+            SELECT %s, %s, %s, 0
+            WHERE NOT EXISTS (
+                SELECT 1 FROM stoklar 
+                WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+            )
+        ''', ('DEPO', 0, palet_tipi_id, 'DEPO', 0, palet_tipi_id))
         
         cursor.execute('SELECT id FROM kullanicilar WHERE tip = %s', ('DAGITICI',))
         dagiticilar = cursor.fetchall()
         for d in dagiticilar:
             cursor.execute('''
                 INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-                VALUES (%s, %s, %s, 0)
-            ''', (SAHIP_TIP_DAGITICI, d[0], palet_tipi_id))
+                SELECT %s, %s, %s, 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM stoklar 
+                    WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+                )
+            ''', ('DAGITICI', d[0], palet_tipi_id, 'DAGITICI', d[0], palet_tipi_id))
         
         cursor.execute('SELECT id FROM musteriler')
         musteriler = cursor.fetchall()
         for m in musteriler:
             cursor.execute('''
                 INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-                VALUES (%s, %s, %s, 0)
-            ''', (SAHIP_TIP_MUSTERI, m[0], palet_tipi_id))
+                SELECT %s, %s, %s, 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM stoklar 
+                    WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+                )
+            ''', ('MUSTERI', m[0], palet_tipi_id, 'MUSTERI', m[0], palet_tipi_id))
         
         conn.commit()
         cursor.close()
@@ -1258,10 +1296,11 @@ def rapor_export(current_user):
     )
 
 
+# ==================== EXCEL YÜKLEME ====================
+
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
-    """Excel'den müşteri yükle (sadece depocu) - Çift kayıt engellemeli"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1293,11 +1332,9 @@ def musteri_excel_yukle(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Mevcut müşteri kodlarını al
     cursor.execute('SELECT musteri_kodu, id FROM musteriler')
     mevcut_musteriler = {m[0]: m[1] for m in cursor.fetchall()}
     
-    # Palet tiplerini al
     cursor.execute('SELECT id FROM palet_tipleri')
     paletler = [p[0] for p in cursor.fetchall()]
     
@@ -1319,7 +1356,6 @@ def musteri_excel_yukle(current_user):
             continue
         
         if musteri_kodu in mevcut_musteriler:
-            # Var olan müşteriyi güncelle
             try:
                 cursor.execute('''
                     UPDATE musteriler 
@@ -1330,7 +1366,6 @@ def musteri_excel_yukle(current_user):
             except Exception as e:
                 hatalar.append(f"Satır {row}: Güncelleme hatası - {str(e)}")
         else:
-            # Yeni müşteri ekle
             try:
                 cursor.execute('''
                     INSERT INTO musteriler (musteri_kodu, musteri_adi, tabela_adi)
@@ -1340,7 +1375,6 @@ def musteri_excel_yukle(current_user):
                 
                 musteri_id = cursor.fetchone()[0]
                 
-                # Yeni müşteri için stokları oluştur (sadece yoksa ekle)
                 for palet_id in paletler:
                     cursor.execute('''
                         INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
@@ -1349,7 +1383,7 @@ def musteri_excel_yukle(current_user):
                             SELECT 1 FROM stoklar 
                             WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
                         )
-                    ''', (SAHIP_TIP_MUSTERI, musteri_id, palet_id, 
+                    ''', (SAHIP_TIP_MUSTERI, musteri_id, palet_id,
                           SAHIP_TIP_MUSTERI, musteri_id, palet_id))
                 
                 eklenen += 1
@@ -1373,24 +1407,50 @@ def musteri_excel_yukle(current_user):
         'hatalar': hatalar,
         'mesaj': mesaj
     })
-@app.route('/api/temizlik', methods=['GET'])
+
+
+# ==================== STOK ONARMA ====================
+
+@app.route('/api/stok_onar', methods=['GET'])
 @token_required
-def temizlik(current_user):
+def stok_onar(current_user):
+    """Eksik stokları onar (sadece depocu)"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Sorunlu stokları sil
-    cursor.execute("DELETE FROM stoklar WHERE stok_sahibi_tip = 'MUSTERI' AND stok_sahibi_id = 0")
-    silinen = cursor.rowcount
+    # Tüm dağıtıcıları al
+    cursor.execute('SELECT id FROM kullanicilar WHERE tip = %s', ('DAGITICI',))
+    dagiticilar = cursor.fetchall()
+    
+    # Tüm palet tiplerini al
+    cursor.execute('SELECT id FROM palet_tipleri')
+    paletler = cursor.fetchall()
+    
+    onarilan = 0
+    
+    for d in dagiticilar:
+        for p in paletler:
+            cursor.execute('''
+                SELECT id FROM stoklar 
+                WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+            ''', ('DAGITICI', d[0], p[0]))
+            
+            if not cursor.fetchone():
+                cursor.execute('''
+                    INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
+                    VALUES (%s, %s, %s, 0)
+                ''', ('DAGITICI', d[0], p[0]))
+                onarilan += 1
     
     conn.commit()
     cursor.close()
     conn.close()
     
-    return jsonify({'success': True, 'silinen': silinen, 'mesaj': f'{silinen} sorunlu kayıt silindi'})
+    return jsonify({'success': True, 'onarilan': onarilan, 'mesaj': f'{onarilan} eksik stok kaydı oluşturuldu'})
+
 
 # ==================== UYGULAMA BAŞLATMA ====================
 
