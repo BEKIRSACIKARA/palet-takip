@@ -926,7 +926,8 @@ def get_hareketler(current_user):
     return jsonify(hareketler)
 
 
-# ==================== EXCEL YÜKLEME (pandas'sız) ====================
+# ==================== EXCEL YÜKLEME ====================
+
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
@@ -966,12 +967,16 @@ def musteri_excel_yukle(current_user):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    cursor.execute('SELECT id, kullanici_adi FROM kullanicilar WHERE tip = "DAGITICI"')
-    dagiticilar = {d[1]: d[0] for d in cursor.fetchall()}
+    # Dağıtıcı listesini al (kullanıcı seçimi için)
+    cursor.execute('SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip = "DAGITICI"')
+    dagiticilar = cursor.fetchall()
     
-    eklenen = 0
-    hatalar = []
+    if not dagiticilar:
+        conn.close()
+        return jsonify({'hata': 'Önce en az bir dağıtıcı eklemelisiniz!'}), 400
     
+    # Önce Excel'deki müşterileri geçici olarak listele
+    musteriler_list = []
     for row in range(2, sheet.max_row + 1):
         musteri_kodu_cell = sheet.cell(row=row, column=col_indices['MÜŞTERİ KODU']).value
         musteri_adi_cell = sheet.cell(row=row, column=col_indices['MÜŞTERİ ADI']).value
@@ -981,24 +986,74 @@ def musteri_excel_yukle(current_user):
         musteri_adi = str(musteri_adi_cell).strip() if musteri_adi_cell else ''
         tabela_adi = str(tabela_adi_cell).strip() if tabela_adi_cell else ''
         
-        if not musteri_kodu or not musteri_adi or not tabela_adi:
-            hatalar.append(f"Satır {row}: Boş alan var")
-            continue
-        
-        if tabela_adi not in dagiticilar:
-            hatalar.append(f"Satır {row}: '{tabela_adi}' adlı dağıtıcı bulunamadı")
-            continue
-        
-        bagli_dagitici_id = dagiticilar[tabela_adi]
+        if musteri_kodu and musteri_adi and tabela_adi:
+            musteriler_list.append({
+                'kodu': musteri_kodu,
+                'adi': musteri_adi,
+                'tabela': tabela_adi
+            })
+    
+    if not musteriler_list:
+        conn.close()
+        return jsonify({'hata': 'Excel dosyasında geçerli müşteri verisi bulunamadı!'}), 400
+    
+    # Dağıtıcı seçim formu oluştur
+    dagitici_options = '\n'.join([f"{d[0]}: {d[2]} ({d[1]})" for d in dagiticilar])
+    
+    conn.close()
+    
+    # Kullanıcıya dağıtıcı seçtirmek için müşteri listesini geçici olarak sakla
+    # (Burada session veya global değişken kullanmak yerine, 
+    #  önce müşterileri gösterip sonra seçim yapılmasını sağlıyoruz)
+    
+    return jsonify({
+        'success': True,
+        'musteriler': musteriler_list,
+        'dagiticilar': [{'id': d[0], 'kullanici_adi': d[1], 'ad_soyad': d[2]} for d in dagiticilar],
+        'mesaj': f'{len(musteriler_list)} müşteri bulundu. Lütfen bağlanacak dağıtıcıyı seçin.'
+    })
+
+
+@app.route('/api/musteri_excel_kaydet', methods=['POST'])
+@token_required
+def musteri_excel_kaydet(current_user):
+    """Excel'den okunan müşterileri seçilen dağıtıcıya kaydet"""
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    data = request.get_json()
+    dagitici_id = data.get('dagitici_id')
+    musteriler = data.get('musteriler')
+    
+    if not dagitici_id or not musteriler:
+        return jsonify({'hata': 'Dağıtıcı ID ve müşteri listesi gerekli'}), 400
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Dağıtıcının var olduğunu kontrol et
+    cursor.execute("SELECT id FROM kullanicilar WHERE id = ? AND tip = 'DAGITICI'", (dagitici_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'hata': 'Geçersiz dağıtıcı ID'}), 400
+    
+    eklenen = 0
+    hatalar = []
+    
+    for m in musteriler:
+        musteri_kodu = m.get('kodu')
+        musteri_adi = m.get('adi')
+        tabela_adi = m.get('tabela')
         
         try:
             cursor.execute('''
                 INSERT INTO musteriler (musteri_kodu, musteri_adi, bagli_dagitici_id)
                 VALUES (?, ?, ?)
-            ''', (musteri_kodu, musteri_adi, bagli_dagitici_id))
+            ''', (musteri_kodu, musteri_adi, dagitici_id))
             
             musteri_id = cursor.lastrowid
             
+            # Stoklarını oluştur
             cursor.execute("SELECT id FROM palet_tipleri")
             paletler = cursor.fetchall()
             for palet in paletler:
@@ -1010,7 +1065,7 @@ def musteri_excel_yukle(current_user):
             eklenen += 1
             
         except sqlite3.IntegrityError:
-            hatalar.append(f"Satır {row}: '{musteri_kodu}' kodu zaten kayıtlı")
+            hatalar.append(f"'{musteri_kodu}' kodu zaten kayıtlı")
             continue
     
     conn.commit()
