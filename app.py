@@ -1258,11 +1258,10 @@ def rapor_export(current_user):
     )
 
 
-# ==================== EXCEL YÜKLEME ====================
-
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
+    """Excel'den müşteri yükle (sadece depocu) - Çift kayıt engellemeli"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1294,8 +1293,13 @@ def musteri_excel_yukle(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT musteri_kodu FROM musteriler')
-    mevcut_kodlar = {k[0] for k in cursor.fetchall()}
+    # Mevcut müşteri kodlarını al
+    cursor.execute('SELECT musteri_kodu, id FROM musteriler')
+    mevcut_musteriler = {m[0]: m[1] for m in cursor.fetchall()}
+    
+    # Palet tiplerini al
+    cursor.execute('SELECT id FROM palet_tipleri')
+    paletler = [p[0] for p in cursor.fetchall()]
     
     eklenen = 0
     guncellenen = 0
@@ -1314,7 +1318,8 @@ def musteri_excel_yukle(current_user):
             hatalar.append(f"Satır {row}: Boş alan var")
             continue
         
-        if musteri_kodu in mevcut_kodlar:
+        if musteri_kodu in mevcut_musteriler:
+            # Var olan müşteriyi güncelle
             try:
                 cursor.execute('''
                     UPDATE musteriler 
@@ -1325,24 +1330,30 @@ def musteri_excel_yukle(current_user):
             except Exception as e:
                 hatalar.append(f"Satır {row}: Güncelleme hatası - {str(e)}")
         else:
+            # Yeni müşteri ekle
             try:
                 cursor.execute('''
                     INSERT INTO musteriler (musteri_kodu, musteri_adi, tabela_adi)
                     VALUES (%s, %s, %s)
+                    RETURNING id
                 ''', (musteri_kodu, musteri_adi, tabela_adi))
                 
-                musteri_id = cursor.lastrowid
+                musteri_id = cursor.fetchone()[0]
                 
-                cursor.execute("SELECT id FROM palet_tipleri")
-                paletler = cursor.fetchall()
-                for palet in paletler:
+                # Yeni müşteri için stokları oluştur (sadece yoksa ekle)
+                for palet_id in paletler:
                     cursor.execute('''
                         INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-                        VALUES (%s, %s, %s, 0)
-                    ''', (SAHIP_TIP_MUSTERI, musteri_id, palet[0]))
+                        SELECT %s, %s, %s, 0
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM stoklar 
+                            WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
+                        )
+                    ''', (SAHIP_TIP_MUSTERI, musteri_id, palet_id, 
+                          SAHIP_TIP_MUSTERI, musteri_id, palet_id))
                 
                 eklenen += 1
-                mevcut_kodlar.add(musteri_kodu)
+                mevcut_musteriler[musteri_kodu] = musteri_id
                 
             except Exception as e:
                 hatalar.append(f"Satır {row}: Ekleme hatası - {str(e)}")
