@@ -505,25 +505,25 @@
         }
         
         async function loadContent(action) {
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
-            
-            if (action === 'depoStok') await showDepoStok(contentDiv);
-            else if (action === 'kendiStok') await showKendiStok(contentDiv);
-            else if (action === 'dagiticiStoklar') await showDagiticiStoklar(contentDiv);
-            else if (action === 'musteriStoklar') await showMusteriStoklar(contentDiv);
-            else if (action === 'depoDagiticiTransfer') showDepoDagiticiTransfer(contentDiv);
-            else if (action === 'dagiticiIade') showDagiticiIade(contentDiv);
-            else if (action === 'musteriyeVer') showMusteriyeVer(contentDiv);
-            else if (action === 'musteridenAl') showMusteridenAl(contentDiv);
-            else if (action === 'depoyaIade') showDepoyaIade(contentDiv);
-            else if (action === 'dagiticiEkle') showDagiticiEkle(contentDiv);
-            else if (action === 'musteriEkle') showMusteriEkle(contentDiv);
-            else if (action === 'paletTipleri') await showPaletTipleri(contentDiv);
-            else if (action === 'kullaniciYonetim') await showKullaniciYonetim(contentDiv);
-            else if (action === 'excelYukle') showExcelYukle(contentDiv);
-            else if (action === 'hareketler') await showHareketler(contentDiv);
-        }
+    const contentDiv = document.getElementById('content');
+    contentDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+    
+    if (action === 'depoStok') await showDepoStok(contentDiv);
+    else if (action === 'kendiStok') await showKendiStok(contentDiv);
+    else if (action === 'dagiticiStoklar') await showDagiticiStoklar(contentDiv);
+    else if (action === 'musteriStoklar') await showMusteriStoklar(contentDiv);
+    else if (action === 'depoDagiticiTransfer') showDepoDagiticiTransfer(contentDiv);
+    else if (action === 'dagiticiIade') showDagiticiIade(contentDiv);
+    else if (action === 'musteriyeVer') showMusteriyeVer(contentDiv);
+    else if (action === 'musteridenAl') showMusteridenAl(contentDiv);
+    else if (action === 'depoyaIade') showDepoyaIade(contentDiv);
+    else if (action === 'dagiticiEkle') showDagiticiEkle(contentDiv);  // ← BURASI
+    else if (action === 'musteriEkle') showMusteriEkle(contentDiv);
+    else if (action === 'paletTipleri') await showPaletTipleri(contentDiv);
+    else if (action === 'kullaniciYonetim') await showKullaniciYonetim(contentDiv);
+    else if (action === 'excelYukle') showExcelYukle(contentDiv);
+    else if (action === 'hareketler') await showHareketler(contentDiv);
+}
         
         async function showStok(contentDiv, tip, id, baslik, append = false) {
             const result = await apiCall(`/api/stok?tip=${tip}&id=${id}`);
@@ -729,17 +729,55 @@
             `;
         }
         
-        function showDagiticiEkle(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">➕ Yeni Dağıtıcı Ekle</div>
-                    <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi"></div>
-                    <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad"></div>
-                    <div class="form-group"><label>Şifre</label><input type="password" id="sifre"></div>
-                    <button class="btn" onclick="dagiticiEkle()">Kaydet</button>
-                </div>
-            `;
-        }
+       function showDagiticiEkle(contentDiv) {
+    contentDiv.innerHTML = `
+        <div class="card">
+            <div class="card-title">➕ Yeni Dağıtıcı Ekle</div>
+            <div class="form-group">
+                <label>Kullanıcı Adı</label>
+                <input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı">
+            </div>
+            <div class="form-group">
+                <label>Ad Soyad</label>
+                <input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad">
+            </div>
+            <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)">
+            </div>
+            <button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button>
+        </div>
+    `;
+}
+
+async function yeniDagiticiEkle() {
+    const kullanici_adi = document.getElementById('yeni_kullanici_adi').value;
+    const ad_soyad = document.getElementById('yeni_ad_soyad').value;
+    const sifre = document.getElementById('yeni_sifre').value;
+    
+    if (!kullanici_adi || !ad_soyad || !sifre) {
+        showToast('Tüm alanları doldurun', 'error');
+        return;
+    }
+    
+    if (sifre.length < 4) {
+        showToast('Şifre en az 4 karakter olmalı', 'error');
+        return;
+    }
+    
+    const result = await apiCall('/api/dagitici_ekle', {
+        method: 'POST',
+        body: JSON.stringify({ kullanici_adi, ad_soyad, sifre })
+    });
+    
+    if (result && result.status === 200 && result.data.success) {
+        showToast(result.data.mesaj);
+        // Başarılı olunca dağıtıcı listesini göster
+        loadContent('kullaniciYonetim');
+    } else {
+        showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
+    }
+}
         
         function showMusteriEkle(contentDiv) {
             contentDiv.innerHTML = `
