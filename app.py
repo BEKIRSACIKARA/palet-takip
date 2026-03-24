@@ -1022,3 +1022,9 @@ def musteri_excel_yukle(current_user):
         'hatalar': hatalar,
         'mesaj': f'{eklenen} müşteri eklendi. {len(hatalar)} hata oluştu.'
     })
+# ==================== UYGULAMA BAŞLATMA ====================
+
+if __name__ == '__main__':
+    veritabani_olustur()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
