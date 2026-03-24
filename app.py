@@ -926,14 +926,16 @@ def get_hareketler(current_user):
     return jsonify(hareketler)
 
 
-# ==================== EXCEL YÜKLEME ====================
+# ==================== EXCEL YÜKLEME (pandas'sız) ====================
 
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
-    """Excel'den müşteri yükle (sadece depocu)"""
+    """Excel'den müşteri yükle (sadece depocu) - openpyxl ile"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    import openpyxl
     
     if 'file' not in request.files:
         return jsonify({'hata': 'Dosya bulunamadı'}), 400
@@ -943,14 +945,24 @@ def musteri_excel_yukle(current_user):
         return jsonify({'hata': 'Dosya seçilmedi'}), 400
     
     try:
-        df = pd.read_excel(file)
+        workbook = openpyxl.load_workbook(file)
+        sheet = workbook.active
     except Exception as e:
         return jsonify({'hata': f'Excel okunamadı: {str(e)}'}), 400
     
+    # İlk satırı sütun başlığı olarak al
+    headers = []
+    for col in range(1, sheet.max_column + 1):
+        val = sheet.cell(row=1, column=col).value
+        headers.append(str(val).strip().upper() if val else '')
+    
     required_columns = ['MÜŞTERİ KODU', 'MÜŞTERİ ADI', 'TABELA ADI']
     for col in required_columns:
-        if col not in df.columns:
-            return jsonify({'hata': f"'{col}' sütunu bulunamadı. Sütunlar: {list(df.columns)}"}), 400
+        if col not in headers:
+            return jsonify({'hata': f"'{col}' sütunu bulunamadı. Sütunlar: {headers}"}), 400
+    
+    # Sütun indekslerini bul
+    col_indices = {h: i+1 for i, h in enumerate(headers)}
     
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -961,17 +973,21 @@ def musteri_excel_yukle(current_user):
     eklenen = 0
     hatalar = []
     
-    for index, row in df.iterrows():
-        musteri_kodu = str(row['MÜŞTERİ KODU']).strip()
-        musteri_adi = str(row['MÜŞTERİ ADI']).strip()
-        tabela_adi = str(row['TABELA ADI']).strip()
+    for row in range(2, sheet.max_row + 1):
+        musteri_kodu_cell = sheet.cell(row=row, column=col_indices['MÜŞTERİ KODU']).value
+        musteri_adi_cell = sheet.cell(row=row, column=col_indices['MÜŞTERİ ADI']).value
+        tabela_adi_cell = sheet.cell(row=row, column=col_indices['TABELA ADI']).value
+        
+        musteri_kodu = str(musteri_kodu_cell).strip() if musteri_kodu_cell else ''
+        musteri_adi = str(musteri_adi_cell).strip() if musteri_adi_cell else ''
+        tabela_adi = str(tabela_adi_cell).strip() if tabela_adi_cell else ''
         
         if not musteri_kodu or not musteri_adi or not tabela_adi:
-            hatalar.append(f"Satır {index+2}: Boş alan var")
+            hatalar.append(f"Satır {row}: Boş alan var")
             continue
         
         if tabela_adi not in dagiticilar:
-            hatalar.append(f"Satır {index+2}: '{tabela_adi}' adlı dağıtıcı bulunamadı")
+            hatalar.append(f"Satır {row}: '{tabela_adi}' adlı dağıtıcı bulunamadı")
             continue
         
         bagli_dagitici_id = dagiticilar[tabela_adi]
@@ -995,7 +1011,7 @@ def musteri_excel_yukle(current_user):
             eklenen += 1
             
         except sqlite3.IntegrityError:
-            hatalar.append(f"Satır {index+2}: '{musteri_kodu}' kodu zaten kayıtlı")
+            hatalar.append(f"Satır {row}: '{musteri_kodu}' kodu zaten kayıtlı")
             continue
     
     conn.commit()
@@ -1007,8 +1023,3 @@ def musteri_excel_yukle(current_user):
         'hatalar': hatalar,
         'mesaj': f'{eklenen} müşteri eklendi. {len(hatalar)} hata oluştu.'
     })
-
-
-if __name__ == '__main__':
-    veritabani_olustur()
-    app.run(host='0.0.0.0', port=5000, debug=False)
