@@ -1,14 +1,14 @@
-from flask import Flask, request, jsonify, send_from_directory, send_file
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import hashlib
 import jwt
 import datetime
 import os
 import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill
-from io import BytesIO
 from functools import wraps
+import urllib.parse
 
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'palet-takip-gizli-anahtar-2026'
