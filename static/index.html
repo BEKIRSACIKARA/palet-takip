@@ -34,6 +34,7 @@
         .btn:active { background: #1976D2; }
         .btn-small { border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.8rem; padding: 6px 12px; }
         .btn-secondary { background: #9e9e9e; }
+        .btn-warning { background: #ff9800; margin-top: 10px; }
         .hareket-item { padding: 12px; border-bottom: 1px solid #eee; }
         .hareket-item .tarih { font-size: 0.7rem; color: #999; }
         .hareket-item .islem { font-weight: 500; margin: 5px 0; }
@@ -48,6 +49,8 @@
         .login-card h2 { text-align: center; color: #2196F3; margin-bottom: 24px; }
         .musteri-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
         .musteri-item:hover { background: #f5f5f5; }
+        .musteri-item.selected { background: #e3f2fd; }
+        .back-btn { background: #9e9e9e; margin-bottom: 16px; }
         @media (max-width: 600px) { .menu-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .menu-btn { padding: 8px 2px; font-size: 0.65rem; } .menu-btn .icon { font-size: 1.2rem; } }
         @media (max-width: 450px) { .menu-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; } .menu-btn { padding: 6px 2px; font-size: 0.6rem; } .menu-btn .icon { font-size: 1.1rem; } }
     </style>
@@ -146,6 +149,7 @@
                     { icon: '📤', text: 'Excel Export', action: 'excelExport' },
                     { icon: '➕', text: 'Dağıtıcı Ekle', action: 'dagiticiEkle' },
                     { icon: '👤', text: 'Müşteri Ekle', action: 'musteriEkle' },
+                    { icon: '🔧', text: 'Stok Onar', action: 'stokOnar' },
                     { icon: '📋', text: 'Hareketler', action: 'hareketler' }
                 ];
             } else {
@@ -182,13 +186,25 @@
             else if (action === 'excelExport') showExcelExport(contentDiv);
             else if (action === 'raporlar') await showRaporlar(contentDiv);
             else if (action === 'depoStokDuzenle') showDepoStokDuzenle(contentDiv);
+            else if (action === 'stokOnar') await stokOnar(contentDiv);
             else if (action === 'hareketler') await showHareketler(contentDiv);
+        }
+
+        async function stokOnar(contentDiv) {
+            contentDiv.innerHTML = '<div class="loading">Stoklar onarılıyor...</div>';
+            const result = await apiCall('/api/stok_onar');
+            if (result && result.data) {
+                contentDiv.innerHTML = `<div class="card"><div class="card-title">🔧 Stok Onarma Sonucu</div><p>${result.data.mesaj}</p><button class="btn back-btn" onclick="loadContent('dagiticiStoklar')">Geri Dön</button></div>`;
+                showToast(result.data.mesaj);
+            } else {
+                contentDiv.innerHTML = `<div class="card"><div class="card-title">❌ Hata</div><p>Stok onarma başarısız</p><button class="btn back-btn" onclick="loadContent('dagiticiStoklar')">Geri Dön</button></div>`;
+            }
         }
 
         async function showStok(contentDiv, tip, id, baslik, append = false) {
             const result = await apiCall(`/api/stok?tip=${tip}&id=${id}`);
             if (result && result.data) {
-                const html = `<div class="card"><div class="card-title">${baslik}</div><table class="stok-table"><thead><tr><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></tr></thead><tbody>${result.data.map(s => `<tr><td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td></tr>`).join('')}</tbody></table></div>`;
+                const html = `<div class="card"><div class="card-title">${baslik}</div><table class="stok-table"><thead> <th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th> </thead><tbody>${result.data.map(s => `<tr><td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td></tr>`).join('')}</tbody></table></div>`;
                 if (append) contentDiv.innerHTML += html;
                 else contentDiv.innerHTML = html;
             }
@@ -208,7 +224,14 @@
         async function showMusteriStoklar(contentDiv) {
             const musteriler = await apiCall('/api/tum_musteriler');
             if (!musteriler?.data || musteriler.data.length === 0) { contentDiv.innerHTML = '<div class="card">📭 Müşteri bulunmuyor</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">🔍 Müşteri Ara ve Seç</div><div class="form-group"><label>🔎 Müşteri Ara (Kod / Ad / Tabela)</label><input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteri()" style="width:100%; padding:12px;"></div><div id="musteriListesi" style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">${musteriler.data.map(m => `<div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSec(this)"><div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div><div style="font-size:0.8rem; color:#666;">🏷️ ${m.tabela_adi}</div></div>`).join('')}</div></div><div id="musteriIslemler" style="display:none;"></div>`;
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">🔍 Müşteri Ara ve Seç</div>
+                    <div class="form-group"><label>🔎 Müşteri Ara (Kod / Ad / Tabela)</label><input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteri()" style="width:100%; padding:12px;"></div>
+                    <div id="musteriListesi" style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">${musteriler.data.map(m => `<div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSec(this)"><div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div><div style="font-size:0.8rem; color:#666;">🏷️ ${m.tabela_adi}</div></div>`).join('')}</div>
+                </div>
+                <div id="musteriIslemler" style="display:none;"></div>
+            `;
         }
 
         function filtreleMusteri() {
@@ -222,12 +245,20 @@
         }
 
         function musteriSec(element) {
-            document.querySelectorAll('.musteri-item').forEach(item => item.style.background = '');
-            element.style.background = '#e3f2fd';
+            document.querySelectorAll('.musteri-item').forEach(item => item.classList.remove('selected'));
+            element.classList.add('selected');
             window.seciliMusteriId = parseInt(element.getAttribute('data-id'));
             window.seciliMusteriAd = element.getAttribute('data-ad');
             const islemlerDiv = document.getElementById('musteriIslemler');
-            islemlerDiv.innerHTML = `<div class="card"><div class="card-title">📦 ${window.seciliMusteriAd} - Stok İşlemleri</div><button class="btn" onclick="musteriStokGoster()" style="margin-bottom:10px; background:#2196F3;">📊 Stok Durumunu Gör</button><button class="btn" onclick="musteriyePaletVer()" style="margin-bottom:10px; background:#4caf50;">➡️ Müşteriye Palet Ver</button><button class="btn" onclick="musteridenPaletAl()" style="background:#ff9800;">⬅️ Müşteriden Palet Al</button></div>`;
+            islemlerDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📦 ${window.seciliMusteriAd} - Stok İşlemleri</div>
+                    <button class="btn" onclick="musteriStokGoster()" style="margin-bottom:10px; background:#2196F3;">📊 Stok Durumunu Gör</button>
+                    <button class="btn" onclick="musteriyePaletVer()" style="margin-bottom:10px; background:#4caf50;">➡️ Müşteriye Palet Ver</button>
+                    <button class="btn" onclick="musteridenPaletAl()" style="background:#ff9800;">⬅️ Müşteriden Palet Al</button>
+                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">🔙 Geri Dön</button>
+                </div>
+            `;
             islemlerDiv.style.display = 'block';
         }
 
@@ -235,20 +266,37 @@
             if (!window.seciliMusteriId) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             const contentDiv = document.getElementById('content');
             await showStok(contentDiv, 'MUSTERI', window.seciliMusteriId, `📦 ${window.seciliMusteriAd} Stoğu`);
+            contentDiv.innerHTML += `<button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">🔙 Geri Dön</button>`;
         }
 
         async function musteriyePaletVer() {
             if (!window.seciliMusteriId) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             const paletler = await apiCall('/api/palet_tipleri');
             if (!paletler?.data) return;
-            document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="musteriTransfer('DAGITICI_MUSTERI')">Palet Ver</button><button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">Geri Dön</button></div>`;
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver</div>
+                    <div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div>
+                    <button class="btn" onclick="musteriTransfer('DAGITICI_MUSTERI')">Palet Ver</button>
+                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">🔙 Geri Dön</button>
+                </div>
+            `;
         }
 
         async function musteridenPaletAl() {
             if (!window.seciliMusteriId) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             const paletler = await apiCall('/api/palet_tipleri');
             if (!paletler?.data) return;
-            document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (İade)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="musteriTransfer('MUSTERI_DAGITICI')">Palet Al</button><button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">Geri Dön</button></div>`;
+            document.getElementById('content').innerHTML = `
+                <div class="card">
+                    <div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (İade)</div>
+                    <div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div>
+                    <button class="btn" onclick="musteriTransfer('MUSTERI_DAGITICI')">Palet Al</button>
+                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">🔙 Geri Dön</button>
+                </div>
+            `;
         }
 
         async function musteriTransfer(hareketTipi) {
@@ -264,37 +312,83 @@
             const dagiticilar = await apiCall('/api/dagitici_listesi');
             const paletler = await apiCall('/api/palet_tipleri');
             if (!dagiticilar?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Önce dağıtıcı eklemelisiniz</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">➡️ Depodan Dağıtıcıya Transfer</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DEPO_DAGITICI')">Transfer Yap</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">➡️ Depodan Dağıtıcıya Transfer</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DEPO_DAGITICI')">Transfer Yap</button><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:10px;">🔙 Geri Dön</button></div>`;
         }
 
         async function showDagiticiIade(contentDiv) {
             const dagiticilar = await apiCall('/api/dagitici_listesi');
             const paletler = await apiCall('/api/palet_tipleri');
             if (!dagiticilar?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Dağıtıcı bulunmuyor</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">⬅️ Dağıtıcıdan İade Al</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Al</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">⬅️ Dağıtıcıdan İade Al</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id">${dagiticilar.data.map(d => `<option value="${d.id}">${d.ad_soyad}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Al</button><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:10px;">🔙 Geri Dön</button></div>`;
         }
 
         async function showMusteriyeVer(contentDiv) {
             const musteriler = await apiCall('/api/tum_musteriler');
             const paletler = await apiCall('/api/palet_tipleri');
             if (!musteriler?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Müşteri bulunmuyor</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">➡️ Müşteriye Palet Ver</div><div class="form-group"><label>Müşteri</label><select id="alici_id">${musteriler.data.map(m => `<option value="${m.id}">${m.musteri_kodu} - ${m.musteri_adi}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_MUSTERI')">Transfer Yap</button></div>`;
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">➡️ Müşteriye Palet Ver</div>
+                    <div class="form-group"><label>🔎 Müşteri Ara</label><input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteriListe()" style="width:100%; padding:12px;"></div>
+                    <div id="musteriListesiSecim" style="max-height:300px; overflow-y:auto; border:1px solid #eee; border-radius:8px; margin-bottom:16px;">${musteriler.data.map(m => `<div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSecVer(this)"><div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div><div style="font-size:0.8rem; color:#666;">🏷️ ${m.tabela_adi}</div></div>`).join('')}</div>
+                    <div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div>
+                    <button class="btn" onclick="transfer('DAGITICI_MUSTERI')">Transfer Yap</button>
+                    <button class="btn btn-secondary" onclick="loadContent('kendiStok')" style="margin-top:10px;">🔙 Geri Dön</button>
+                </div>
+            `;
         }
 
         async function showMusteridenAl(contentDiv) {
             const musteriler = await apiCall('/api/tum_musteriler');
             const paletler = await apiCall('/api/palet_tipleri');
             if (!musteriler?.data?.length) { contentDiv.innerHTML = '<div class="card">❌ Müşteri bulunmuyor</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">⬅️ Müşteriden İade Al</div><div class="form-group"><label>Müşteri</label><select id="alici_id">${musteriler.data.map(m => `<option value="${m.id}">${m.musteri_kodu} - ${m.musteri_adi}</option>`).join('')}</select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('MUSTERI_DAGITICI')">İade Al</button></div>`;
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">⬅️ Müşteriden İade Al</div>
+                    <div class="form-group"><label>🔎 Müşteri Ara</label><input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteriListe()" style="width:100%; padding:12px;"></div>
+                    <div id="musteriListesiSecim" style="max-height:300px; overflow-y:auto; border:1px solid #eee; border-radius:8px; margin-bottom:16px;">${musteriler.data.map(m => `<div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSecAl(this)"><div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div><div style="font-size:0.8rem; color:#666;">🏷️ ${m.tabela_adi}</div></div>`).join('')}</div>
+                    <div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div>
+                    <button class="btn" onclick="transfer('MUSTERI_DAGITICI')">İade Al</button>
+                    <button class="btn btn-secondary" onclick="loadContent('kendiStok')" style="margin-top:10px;">🔙 Geri Dön</button>
+                </div>
+            `;
+        }
+
+        function filtreleMusteriListe() {
+            const arama = document.getElementById('musteriArama').value.toLowerCase().trim();
+            const items = document.querySelectorAll('#musteriListesiSecim .musteri-item');
+            items.forEach(item => {
+                const kod = item.getAttribute('data-kod').toLowerCase();
+                const ad = item.getAttribute('data-ad').toLowerCase();
+                const tabela = item.getAttribute('data-tabela').toLowerCase();
+                item.style.display = (arama === '' || kod.includes(arama) || ad.includes(arama) || tabela.includes(arama)) ? 'block' : 'none';
+            });
+        }
+
+        let seciliTransferMusteriId = null;
+        function musteriSecVer(element) {
+            document.querySelectorAll('#musteriListesiSecim .musteri-item').forEach(item => item.classList.remove('selected'));
+            element.classList.add('selected');
+            seciliTransferMusteriId = parseInt(element.getAttribute('data-id'));
+            window.alici_id = seciliTransferMusteriId;
+        }
+        function musteriSecAl(element) {
+            document.querySelectorAll('#musteriListesiSecim .musteri-item').forEach(item => item.classList.remove('selected'));
+            element.classList.add('selected');
+            seciliTransferMusteriId = parseInt(element.getAttribute('data-id'));
+            window.alici_id = seciliTransferMusteriId;
         }
 
         async function showDepoyaIade(contentDiv) {
             const paletler = await apiCall('/api/palet_tipleri');
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏭 Depoya İade</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Yap</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏭 Depoya İade</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><button class="btn" onclick="transfer('DAGITICI_DEPO')">İade Yap</button><button class="btn btn-secondary" onclick="loadContent('kendiStok')" style="margin-top:10px;">🔙 Geri Dön</button></div>`;
         }
 
         async function transfer(hareketTipi) {
-            const alici_id = document.getElementById('alici_id')?.value;
+            let alici_id = window.alici_id;
+            if (!alici_id && document.getElementById('alici_id')) alici_id = document.getElementById('alici_id')?.value;
             const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
             const miktar = document.getElementById('miktar')?.value;
             if (!palet_tipi_id || !miktar || miktar <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
@@ -306,7 +400,7 @@
         }
 
         function showDagiticiEkle(contentDiv) {
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">➕ Yeni Dağıtıcı Ekle</div><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad"></div><div class="form-group"><label>Şifre</label><input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)"></div><button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">➕ Yeni Dağıtıcı Ekle</div><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad"></div><div class="form-group"><label>Şifre</label><input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)"></div><button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button><button class="btn btn-secondary" onclick="loadContent('kullaniciYonetim')" style="margin-top:10px;">🔙 Geri Dön</button></div>`;
         }
 
         async function yeniDagiticiEkle() {
@@ -321,7 +415,7 @@
         }
 
         function showMusteriEkle(contentDiv) {
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu" placeholder="Müşteri kodu (benzersiz)"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi" placeholder="Müşteri adı"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi" placeholder="İşletme/Tablet adı"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu" placeholder="Müşteri kodu (benzersiz)"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi" placeholder="Müşteri adı"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi" placeholder="İşletme/Tablet adı"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button><button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top:10px;">🔙 Geri Dön</button></div>`;
         }
 
         async function yeniMusteriEkle() {
@@ -337,7 +431,7 @@
         async function showPaletTipleri(contentDiv) {
             const paletler = await apiCall('/api/palet_tipleri');
             if (!paletler?.data) { contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></tr></thead><tbody>${paletler.data.map(p => `<tr><td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="paletModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu" placeholder="Örn: P004"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi" placeholder="Örn: Metal Palet"></div><input type="hidden" id="palet_id"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></tr></thead><tbody>${paletler.data.map(p => `<tr><td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div><div id="paletModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu" placeholder="Örn: P004"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi" placeholder="Örn: Metal Palet"></div><input type="hidden" id="palet_id"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`;
         }
 
         function showYeniPaletTipiModal() { document.getElementById('modalTitle').innerText = 'Yeni Palet Tipi'; document.getElementById('stok_kodu').value = ''; document.getElementById('palet_adi').value = ''; document.getElementById('palet_id').value = ''; document.getElementById('paletModal').style.display = 'flex'; }
@@ -361,7 +455,7 @@
         async function showKullaniciYonetim(contentDiv) {
             const kullanicilar = await apiCall('/api/kullanici_listesi');
             if (!kullanicilar?.data) { contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></tr></thead><tbody>${kullanicilar.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre (boş bırak değişmesin)</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></tr></thead><tbody>${kullanicilar.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div><div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre (boş bırak değişmesin)</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`;
         }
 
         function showYeniKullaniciModal() { document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle'; document.getElementById('kullanici_adi_duzenle').value = ''; document.getElementById('ad_soyad_duzenle').value = ''; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = ''; document.getElementById('kullaniciModal').style.display = 'flex'; }
@@ -385,7 +479,7 @@
         async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return; const result = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('kullaniciYonetim'); } else showToast(result?.data?.hata || 'Silme başarısız', 'error'); }
 
         function showExcelYukle(contentDiv) {
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">📂 Excel'den Müşteri Yükle</div><div class="form-group"><label>Excel Dosyası Seçin</label><input type="file" id="excelFile" accept=".xlsx, .xls"></div><div class="form-group"><div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;"><strong>Excel Formatı:</strong><br>• MÜŞTERİ KODU<br>• MÜŞTERİ ADI<br>• TABELA ADI (müşterinin işletme adı)<br><br><strong>Örnek:</strong><br>MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>001 | Selim Kuş | ABC Market<br>002 | Mehmet Demir | XYZ Ltd<br><br><strong>Not:</strong> Aynı müşteri kodu varsa güncellenir, yoksa eklenir.</div></div><button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button><div id="excelSonuc" style="margin-top:16px;"></div></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">📂 Excel'den Müşteri Yükle</div><div class="form-group"><label>Excel Dosyası Seçin</label><input type="file" id="excelFile" accept=".xlsx, .xls"></div><div class="form-group"><div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;"><strong>Excel Formatı:</strong><br>• MÜŞTERİ KODU<br>• MÜŞTERİ ADI<br>• TABELA ADI (müşterinin işletme adı)<br><br><strong>Örnek:</strong><br>MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>001 | Selim Kuş | ABC Market<br>002 | Mehmet Demir | XYZ Ltd<br><br><strong>Not:</strong> Aynı müşteri kodu varsa güncellenir, yoksa eklenir.</div></div><button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button><div id="excelSonuc" style="margin-top:16px;"></div><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div>`;
         }
 
         async function excelYukle() {
@@ -407,7 +501,7 @@
         }
 
         function showExcelExport(contentDiv) {
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">📤 Veri Dışa Aktarma (Excel)</div><div class="form-group"><label>Rapor Tipi</label><select id="export_tipi"><option value="hareketler">📋 Hareketler</option><option value="stoklar">📦 Stoklar (Depo, Dağıtıcı, Müşteri)</option><option value="musteriler">🏪 Müşteri Listesi</option></select></div><div id="tarihSecim" style="display:none;"><div class="form-group"><label>Başlangıç Tarihi</label><input type="date" id="export_baslangic"></div><div class="form-group"><label>Bitiş Tarihi</label><input type="date" id="export_bitis"></div></div><button class="btn" onclick="excelExportYap()" style="background:#4caf50;">Excel Olarak İndir</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">📤 Veri Dışa Aktarma (Excel)</div><div class="form-group"><label>Rapor Tipi</label><select id="export_tipi"><option value="hareketler">📋 Hareketler</option><option value="stoklar">📦 Stoklar (Depo, Dağıtıcı, Müşteri)</option><option value="musteriler">🏪 Müşteri Listesi</option></select></div><div id="tarihSecim" style="display:none;"><div class="form-group"><label>Başlangıç Tarihi</label><input type="date" id="export_baslangic"></div><div class="form-group"><label>Bitiş Tarihi</label><input type="date" id="export_bitis"></div></div><button class="btn" onclick="excelExportYap()" style="background:#4caf50;">Excel Olarak İndir</button><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div>`;
             document.getElementById('export_tipi').addEventListener('change', function() { document.getElementById('tarihSecim').style.display = this.value === 'hareketler' ? 'block' : 'none'; });
         }
 
@@ -428,7 +522,7 @@
 
         async function showRaporlar(contentDiv) {
             const istatistikler = await apiCall('/api/rapor/istatistikler');
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">📊 İstatistikler</div><div id="istatistikler"></div></div><div class="card"><div class="card-title">📅 Tarih Aralığı Raporu</div><div class="form-group"><label>Başlangıç Tarihi</label><input type="date" id="baslangic_tarihi"></div><div class="form-group"><label>Bitiş Tarihi</label><input type="date" id="bitis_tarihi"></div><button class="btn" onclick="tarihRaporuGoster()" style="background:#4caf50;">Raporu Göster</button><button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel'e Aktar</button><div id="tarihRaporuSonuc" style="margin-top:16px;"></div></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">📊 İstatistikler</div><div id="istatistikler"></div></div><div class="card"><div class="card-title">📅 Tarih Aralığı Raporu</div><div class="form-group"><label>Başlangıç Tarihi</label><input type="date" id="baslangic_tarihi"></div><div class="form-group"><label>Bitiş Tarihi</label><input type="date" id="bitis_tarihi"></div><button class="btn" onclick="tarihRaporuGoster()" style="background:#4caf50;">Raporu Göster</button><button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel'e Aktar</button><div id="tarihRaporuSonuc" style="margin-top:16px;"></div><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div>`;
             if (istatistikler && istatistikler.data) {
                 const data = istatistikler.data;
                 let html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>';
@@ -472,7 +566,7 @@
         }
 
         function showDepoStokDuzenle(contentDiv) {
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">✏️ Depo Stok Düzenle</div><div class="form-group"><label>İşlem Tipi</label><select id="islem_tipi" onchange="aciklamaPlaceholder()"><option value="arttir">📈 Stok Arttır</option><option value="azalt">📉 Stok Azalt</option></select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id"></select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><div class="form-group"><label>Açıklama / Sebep</label><input type="text" id="aciklama" placeholder="Neden arttırılıyor/azaltılıyor?"></div><button class="btn" onclick="depoStokHareket()">İşlemi Gerçekleştir</button></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">✏️ Depo Stok Düzenle</div><div class="form-group"><label>İşlem Tipi</label><select id="islem_tipi" onchange="aciklamaPlaceholder()"><option value="arttir">📈 Stok Arttır</option><option value="azalt">📉 Stok Azalt</option></select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id"></select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar" placeholder="Miktar"></div><div class="form-group"><label>Açıklama / Sebep</label><input type="text" id="aciklama" placeholder="Neden arttırılıyor/azaltılıyor?"></div><button class="btn" onclick="depoStokHareket()">İşlemi Gerçekleştir</button><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div>`;
             apiCall('/api/palet_tipleri').then(result => { if (result && result.data) document.getElementById('palet_tipi_id').innerHTML = result.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join(''); });
         }
 
@@ -495,8 +589,8 @@
 
         async function showHareketler(contentDiv) {
             const result = await apiCall('/api/hareketler');
-            if (result && result.data && result.data.length > 0) contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}</div>`).join('')}</div>`;
-            else contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok</div>';
+            if (result && result.data && result.data.length > 0) contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}</div>`).join('')}<button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div>`;
+            else contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok<button class="btn btn-secondary" onclick="loadContent(\'depoStok\')" style="margin-top:16px;">🔙 Geri Dön</button></div>';
         }
 
         const savedToken = localStorage.getItem('token');
