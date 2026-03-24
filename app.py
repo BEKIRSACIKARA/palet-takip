@@ -5,8 +5,7 @@ import hashlib
 import jwt
 import datetime
 import os
-# import pandas as pd
-# import io
+import openpyxl
 from functools import wraps
 
 app = Flask(__name__, static_folder='static')
@@ -54,14 +53,13 @@ def veritabani_olustur():
         )
     ''')
 
-    # Müşteriler tablosu
+    # Müşteriler tablosu (bağlı dağıtıcı yok)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS musteriler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             musteri_kodu TEXT UNIQUE NOT NULL,
             musteri_adi TEXT NOT NULL,
-            bagli_dagitici_id INTEGER NOT NULL,
-            FOREIGN KEY (bagli_dagitici_id) REFERENCES kullanicilar(id)
+            tabela_adi TEXT NOT NULL
         )
     ''')
 
@@ -331,14 +329,6 @@ def kullanici_sil(current_user):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Bu dağıtıcıya ait müşteri var mı?
-    cursor.execute('SELECT COUNT(*) FROM musteriler WHERE bagli_dagitici_id = ?', (kullanici_id,))
-    musteri_sayisi = cursor.fetchone()[0]
-    
-    if musteri_sayisi > 0:
-        conn.close()
-        return jsonify({'hata': f'Bu dağıtıcıya ait {musteri_sayisi} müşteri var. Önce müşterileri silin veya başka dağıtıcıya taşıyın!'}), 400
-    
     # Dağıtıcının stoklarını sil
     cursor.execute('DELETE FROM stoklar WHERE stok_sahibi_tip = ? AND stok_sahibi_id = ?', 
                    (SAHIP_TIP_DAGITICI, kullanici_id))
@@ -415,24 +405,19 @@ def musteri_ekle(current_user):
     data = request.get_json()
     musteri_kodu = data.get('musteri_kodu')
     musteri_adi = data.get('musteri_adi')
-    bagli_dagitici_id = data.get('bagli_dagitici_id')
+    tabela_adi = data.get('tabela_adi')
     
-    if not musteri_kodu or not musteri_adi or not bagli_dagitici_id:
+    if not musteri_kodu or not musteri_adi or not tabela_adi:
         return jsonify({'hata': 'Tüm alanlar gerekli'}), 400
     
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id FROM kullanicilar WHERE id = ? AND tip = 'DAGITICI'", (bagli_dagitici_id,))
-    if not cursor.fetchone():
-        conn.close()
-        return jsonify({'hata': 'Geçersiz dağıtıcı ID'}), 400
-    
     try:
         cursor.execute('''
-            INSERT INTO musteriler (musteri_kodu, musteri_adi, bagli_dagitici_id)
+            INSERT INTO musteriler (musteri_kodu, musteri_adi, tabela_adi)
             VALUES (?, ?, ?)
-        ''', (musteri_kodu, musteri_adi, bagli_dagitici_id))
+        ''', (musteri_kodu, musteri_adi, tabela_adi))
         
         musteri_id = cursor.lastrowid
         
@@ -454,45 +439,20 @@ def musteri_ekle(current_user):
         return jsonify({'hata': 'Bu müşteri kodu zaten kullanılıyor'}), 400
 
 
-@app.route('/api/musteri_listesi', methods=['GET'])
+@app.route('/api/tum_musteriler', methods=['GET'])
 @token_required
-def get_musteri_listesi(current_user):
-    """Tüm müşterileri listele (sadece depocu)"""
-    if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    
+def get_tum_musteriler(current_user):
+    """Tüm müşterileri listele (depocu ve dağıtıcı)"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT m.id, m.musteri_kodu, m.musteri_adi, k.ad_soyad as bagli_dagitici
-        FROM musteriler m
-        JOIN kullanicilar k ON m.bagli_dagitici_id = k.id
-        ORDER BY m.musteri_adi
+        SELECT id, musteri_kodu, musteri_adi, tabela_adi FROM musteriler
+        ORDER BY musteri_adi
     ''')
     sonuc = cursor.fetchall()
     conn.close()
     
-    musteriler = [{'id': m[0], 'musteri_kodu': m[1], 'musteri_adi': m[2], 'bagli_dagitici': m[3]} for m in sonuc]
-    return jsonify(musteriler)
-
-
-@app.route('/api/dagitici_musterileri', methods=['GET'])
-@token_required
-def get_dagitici_musterileri(current_user):
-    """Dağıtıcıya bağlı müşterileri listele"""
-    if current_user['tip'] != 'DAGITICI':
-        return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT id, musteri_kodu, musteri_adi FROM musteriler
-        WHERE bagli_dagitici_id = ?
-    ''', (current_user['id'],))
-    sonuc = cursor.fetchall()
-    conn.close()
-    
-    musteriler = [{'id': m[0], 'musteri_kodu': m[1], 'musteri_adi': m[2]} for m in sonuc]
+    musteriler = [{'id': m[0], 'musteri_kodu': m[1], 'musteri_adi': m[2], 'tabela_adi': m[3]} for m in sonuc]
     return jsonify(musteriler)
 
 
@@ -511,7 +471,6 @@ def musteri_sil(current_user):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Müşterinin stoklarını kontrol et
     cursor.execute('SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip = ? AND stok_sahibi_id = ?', 
                    (SAHIP_TIP_MUSTERI, musteri_id))
     toplam_stok = cursor.fetchone()[0]
@@ -520,11 +479,8 @@ def musteri_sil(current_user):
         conn.close()
         return jsonify({'hata': f'Bu müşterinin {toplam_stok} adet paleti var. Önce stokları boşaltın!'}), 400
     
-    # Müşterinin stoklarını sil
     cursor.execute('DELETE FROM stoklar WHERE stok_sahibi_tip = ? AND stok_sahibi_id = ?', 
                    (SAHIP_TIP_MUSTERI, musteri_id))
-    
-    # Müşteriyi sil
     cursor.execute('DELETE FROM musteriler WHERE id = ?', (musteri_id,))
     
     if cursor.rowcount == 0:
@@ -578,7 +534,6 @@ def palet_tipi_ekle(current_user):
         
         palet_tipi_id = cursor.lastrowid
         
-        # Tüm stok sahipleri için bu palet tipini ekle
         cursor.execute('''
             INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
             VALUES (?, ?, ?, 0)
@@ -789,10 +744,7 @@ def transfer_yap(current_user):
             alan_tip = SAHIP_TIP_MUSTERI
             alan_id = alici_id
             
-            cursor.execute('''
-                SELECT id FROM musteriler 
-                WHERE id = ? AND bagli_dagitici_id = ?
-            ''', (alici_id, kullanici_id))
+            cursor.execute('SELECT id FROM musteriler WHERE id = ?', (alici_id,))
             if not cursor.fetchone():
                 conn.close()
                 return jsonify({'hata': 'Geçersiz müşteri ID'}), 400
@@ -803,10 +755,7 @@ def transfer_yap(current_user):
             alan_tip = SAHIP_TIP_DAGITICI
             alan_id = kullanici_id
             
-            cursor.execute('''
-                SELECT id FROM musteriler 
-                WHERE id = ? AND bagli_dagitici_id = ?
-            ''', (alici_id, kullanici_id))
+            cursor.execute('SELECT id FROM musteriler WHERE id = ?', (alici_id,))
             if not cursor.fetchone():
                 conn.close()
                 return jsonify({'hata': 'Geçersiz müşteri ID'}), 400
@@ -926,16 +875,14 @@ def get_hareketler(current_user):
     return jsonify(hareketler)
 
 
-# ==================== EXCEL YÜKLEME ====================
+# ==================== EXCEL YÜKLEME (Çift Kayıt Engellemeli) ====================
 
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
-    """Excel'den müşteri yükle (sadece depocu)"""
+    """Excel'den müşteri yükle (sadece depocu) - Çift kayıt engellemeli"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    
-    import openpyxl
     
     if 'file' not in request.files:
         return jsonify({'hata': 'Dosya bulunamadı'}), 400
@@ -950,7 +897,6 @@ def musteri_excel_yukle(current_user):
     except Exception as e:
         return jsonify({'hata': f'Excel okunamadı: {str(e)}'}), 400
     
-    # İlk satırı sütun başlığı olarak al
     headers = []
     for col in range(1, sheet.max_column + 1):
         val = sheet.cell(row=1, column=col).value
@@ -961,22 +907,19 @@ def musteri_excel_yukle(current_user):
         if col not in headers:
             return jsonify({'hata': f"'{col}' sütunu bulunamadı. Sütunlar: {headers}"}), 400
     
-    # Sütun indekslerini bul
     col_indices = {h: i+1 for i, h in enumerate(headers)}
     
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Dağıtıcı listesini al (kullanıcı seçimi için)
-    cursor.execute('SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip = "DAGITICI"')
-    dagiticilar = cursor.fetchall()
+    # Mevcut müşteri kodlarını al
+    cursor.execute('SELECT musteri_kodu FROM musteriler')
+    mevcut_kodlar = {k[0] for k in cursor.fetchall()}
     
-    if not dagiticilar:
-        conn.close()
-        return jsonify({'hata': 'Önce en az bir dağıtıcı eklemelisiniz!'}), 400
+    eklenen = 0
+    guncellenen = 0
+    hatalar = []
     
-    # Önce Excel'deki müşterileri geçici olarak listele
-    musteriler_list = []
     for row in range(2, sheet.max_row + 1):
         musteri_kodu_cell = sheet.cell(row=row, column=col_indices['MÜŞTERİ KODU']).value
         musteri_adi_cell = sheet.cell(row=row, column=col_indices['MÜŞTERİ ADI']).value
@@ -986,97 +929,64 @@ def musteri_excel_yukle(current_user):
         musteri_adi = str(musteri_adi_cell).strip() if musteri_adi_cell else ''
         tabela_adi = str(tabela_adi_cell).strip() if tabela_adi_cell else ''
         
-        if musteri_kodu and musteri_adi and tabela_adi:
-            musteriler_list.append({
-                'kodu': musteri_kodu,
-                'adi': musteri_adi,
-                'tabela': tabela_adi
-            })
-    
-    if not musteriler_list:
-        conn.close()
-        return jsonify({'hata': 'Excel dosyasında geçerli müşteri verisi bulunamadı!'}), 400
-    
-    # Dağıtıcı seçim formu oluştur
-    dagitici_options = '\n'.join([f"{d[0]}: {d[2]} ({d[1]})" for d in dagiticilar])
-    
-    conn.close()
-    
-    # Kullanıcıya dağıtıcı seçtirmek için müşteri listesini geçici olarak sakla
-    # (Burada session veya global değişken kullanmak yerine, 
-    #  önce müşterileri gösterip sonra seçim yapılmasını sağlıyoruz)
-    
-    return jsonify({
-        'success': True,
-        'musteriler': musteriler_list,
-        'dagiticilar': [{'id': d[0], 'kullanici_adi': d[1], 'ad_soyad': d[2]} for d in dagiticilar],
-        'mesaj': f'{len(musteriler_list)} müşteri bulundu. Lütfen bağlanacak dağıtıcıyı seçin.'
-    })
-
-
-@app.route('/api/musteri_excel_kaydet', methods=['POST'])
-@token_required
-def musteri_excel_kaydet(current_user):
-    """Excel'den okunan müşterileri seçilen dağıtıcıya kaydet"""
-    if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    
-    data = request.get_json()
-    dagitici_id = data.get('dagitici_id')
-    musteriler = data.get('musteriler')
-    
-    if not dagitici_id or not musteriler:
-        return jsonify({'hata': 'Dağıtıcı ID ve müşteri listesi gerekli'}), 400
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Dağıtıcının var olduğunu kontrol et
-    cursor.execute("SELECT id FROM kullanicilar WHERE id = ? AND tip = 'DAGITICI'", (dagitici_id,))
-    if not cursor.fetchone():
-        conn.close()
-        return jsonify({'hata': 'Geçersiz dağıtıcı ID'}), 400
-    
-    eklenen = 0
-    hatalar = []
-    
-    for m in musteriler:
-        musteri_kodu = m.get('kodu')
-        musteri_adi = m.get('adi')
-        tabela_adi = m.get('tabela')
-        
-        try:
-            cursor.execute('''
-                INSERT INTO musteriler (musteri_kodu, musteri_adi, bagli_dagitici_id)
-                VALUES (?, ?, ?)
-            ''', (musteri_kodu, musteri_adi, dagitici_id))
-            
-            musteri_id = cursor.lastrowid
-            
-            # Stoklarını oluştur
-            cursor.execute("SELECT id FROM palet_tipleri")
-            paletler = cursor.fetchall()
-            for palet in paletler:
-                cursor.execute('''
-                    INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
-                    VALUES (?, ?, ?, 0)
-                ''', (SAHIP_TIP_MUSTERI, musteri_id, palet[0]))
-            
-            eklenen += 1
-            
-        except sqlite3.IntegrityError:
-            hatalar.append(f"'{musteri_kodu}' kodu zaten kayıtlı")
+        if not musteri_kodu or not musteri_adi or not tabela_adi:
+            hatalar.append(f"Satır {row}: Boş alan var")
             continue
+        
+        if musteri_kodu in mevcut_kodlar:
+            # Var olan müşteriyi güncelle
+            try:
+                cursor.execute('''
+                    UPDATE musteriler 
+                    SET musteri_adi = ?, tabela_adi = ?
+                    WHERE musteri_kodu = ?
+                ''', (musteri_adi, tabela_adi, musteri_kodu))
+                guncellenen += 1
+            except Exception as e:
+                hatalar.append(f"Satır {row}: Güncelleme hatası - {str(e)}")
+        else:
+            # Yeni müşteri ekle
+            try:
+                cursor.execute('''
+                    INSERT INTO musteriler (musteri_kodu, musteri_adi, tabela_adi)
+                    VALUES (?, ?, ?)
+                ''', (musteri_kodu, musteri_adi, tabela_adi))
+                
+                musteri_id = cursor.lastrowid
+                
+                # Stoklarını oluştur
+                cursor.execute("SELECT id FROM palet_tipleri")
+                paletler = cursor.fetchall()
+                for palet in paletler:
+                    cursor.execute('''
+                        INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
+                        VALUES (?, ?, ?, 0)
+                    ''', (SAHIP_TIP_MUSTERI, musteri_id, palet[0]))
+                
+                eklenen += 1
+                mevcut_kodlar.add(musteri_kodu)
+                
+            except sqlite3.IntegrityError:
+                hatalar.append(f"Satır {row}: '{musteri_kodu}' kodu zaten kayıtlı")
+            except Exception as e:
+                hatalar.append(f"Satır {row}: Ekleme hatası - {str(e)}")
     
     conn.commit()
     conn.close()
     
+    mesaj = f'{eklenen} yeni müşteri eklendi, {guncellenen} müşteri güncellendi.'
+    if hatalar:
+        mesaj += f' {len(hatalar)} hata oluştu.'
+    
     return jsonify({
         'success': True,
         'eklenen': eklenen,
+        'guncellenen': guncellenen,
         'hatalar': hatalar,
-        'mesaj': f'{eklenen} müşteri eklendi. {len(hatalar)} hata oluştu.'
+        'mesaj': mesaj
     })
+
+
 # ==================== UYGULAMA BAŞLATMA ====================
 
 if __name__ == '__main__':
