@@ -284,6 +284,72 @@
                 grid-template-columns: 1fr;
             }
         }
+        /* Menü Butonları - Daha Küçük */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.menu-btn {
+    background: white;
+    border: none;
+    padding: 10px 4px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #2196F3;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.menu-btn:active {
+    transform: scale(0.96);
+    background: #f0f0f0;
+}
+
+.menu-btn .icon {
+    font-size: 1.3rem;
+}
+
+/* Telefon için (dar ekran) */
+@media (max-width: 600px) {
+    .menu-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+    
+    .menu-btn {
+        padding: 8px 2px;
+        font-size: 0.65rem;
+    }
+    
+    .menu-btn .icon {
+        font-size: 1.2rem;
+    }
+}
+
+/* Çok küçük ekranlar için */
+@media (max-width: 450px) {
+    .menu-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+    }
+    
+    .menu-btn {
+        padding: 6px 2px;
+        font-size: 0.6rem;
+    }
+    
+    .menu-btn .icon {
+        font-size: 1.1rem;
+    }
     </style>
 </head>
 <body>
