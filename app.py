@@ -927,11 +927,10 @@ def get_hareketler(current_user):
 
 
 # ==================== EXCEL YÜKLEME (pandas'sız) ====================
-
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
-    """Excel'den müşteri yükle (sadece depocu) - openpyxl ile"""
+    """Excel'den müşteri yükle (sadece depocu)"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
