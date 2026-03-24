@@ -907,92 +907,96 @@
             }
         }
         
-        function showExcelYukle(contentDiv) {
-            contentDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-title">📂 Excel'den Müşteri Yükle</div>
-                    <div class="form-group"><label>Excel Dosyası Seçin</label><input type="file" id="excelFile" accept=".xlsx, .xls"></div>
-                    <div class="form-group"><div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;"><strong>Sütunlar:</strong><br>• MÜŞTERİ KODU<br>• MÜŞTERİ ADI<br>• TABELA ADI (dağıtıcının kullanıcı adı)<br><br><strong>Örnek:</strong><br>MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>001 | ABC Market | dagitici1</div></div>
-                    <button class="btn" onclick="excelYukle()" style="background:#4caf50;">Yükle</button>
-                    <div id="excelSonuc" style="margin-top:16px;"></div>
+        let excelMusteriler = [];
+
+function showExcelYukle(contentDiv) {
+    contentDiv.innerHTML = `
+        <div class="card">
+            <div class="card-title">📂 Excel'den Müşteri Yükle</div>
+            <div class="form-group">
+                <label>Excel Dosyası Seçin</label>
+                <input type="file" id="excelFile" accept=".xlsx, .xls">
+            </div>
+            <div class="form-group">
+                <div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;">
+                    <strong>Excel Formatı:</strong><br>
+                    • MÜŞTERİ KODU<br>
+                    • MÜŞTERİ ADI<br>
+                    • TABELA ADI (müşterinin işletme adı)<br>
+                    <br>
+                    <strong>Örnek:</strong><br>
+                    MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>
+                    001 | Selim Kuş | ABC Market<br>
+                    002 | Mehmet Demir | XYZ Ltd
                 </div>
-            `;
-        }
+            </div>
+            <button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button>
+            <div id="excelSonuc" style="margin-top:16px;"></div>
+        </div>
+    `;
+}
+
+async function excelYukle() {
+    const fileInput = document.getElementById('excelFile');
+    const file = fileInput.files[0];
+    if (!file) { showToast('Lütfen bir dosya seçin', 'error'); return; }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    const sonucDiv = document.getElementById('excelSonuc');
+    sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+    
+    try {
+        const response = await fetch(`${API_URL}/api/musteri_excel_yukle`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+        const result = await response.json();
         
-        async function excelYukle() {
-            const fileInput = document.getElementById('excelFile');
-            const file = fileInput.files[0];
-            if (!file) { showToast('Lütfen bir dosya seçin', 'error'); return; }
+        if (result.success) {
+            excelMusteriler = result.musteriler;
             
-            const formData = new FormData();
-            formData.append('file', file);
-            const sonucDiv = document.getElementById('excelSonuc');
-            sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+            let html = `<div style="background:#4caf50; color:white; padding:12px; border-radius:8px;">✅ ${result.mesaj}</div>`;
+            html += `<div class="form-group" style="margin-top:16px;">
+                        <label>Bu müşterileri hangi dağıtıcıya bağlamak istiyorsunuz?</label>
+                        <select id="dagiticiSecim">`;
+            for (const d of result.dagiticilar) {
+                html += `<option value="${d.id}">${d.ad_soyad} (${d.kullanici_adi})</option>`;
+            }
+            html += `</select></div>`;
+            html += `<button class="btn" onclick="excelMusterileriKaydet()" style="background:#2196F3;">Seçilen Dağıtıcıya Kaydet</button>`;
+            html += `<div style="margin-top:16px;"><strong>Müşteriler:</strong><br>${result.musteriler.map(m => `• ${m.kodu} - ${m.adi} (${m.tabela})`).join('<br>')}</div>`;
             
-            try {
-                const response = await fetch(`${API_URL}/api/musteri_excel_yukle`, {
-                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
-                });
-                const result = await response.json();
-                if (result.success) {
-                    let html = `<div style="background:#4caf50; color:white; padding:12px; border-radius:8px;">✅ ${result.mesaj}</div>`;
-                    if (result.hatalar && result.hatalar.length > 0) {
-                        html += `<div style="margin-top:12px; background:#ffebee; padding:12px; border-radius:8px;"><strong>⚠️ Hatalar:</strong><br>${result.hatalar.map(h => `• ${h}`).join('<br>')}</div>`;
-                    }
-                    sonucDiv.innerHTML = html;
-                    showToast(result.mesaj);
-                } else {
-                    sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ ${result.hata}</div>`;
-                    showToast(result.hata, 'error');
-                }
-            } catch (error) {
-                sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ Yükleme hatası: ${error.message}</div>`;
-                showToast('Yükleme hatası', 'error');
-            }
+            sonucDiv.innerHTML = html;
+        } else {
+            sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ ${result.hata}</div>`;
+            showToast(result.hata, 'error');
         }
-        
-        async function showHareketler(contentDiv) {
-            const result = await apiCall('/api/hareketler');
-            if (result && result.data && result.data.length > 0) {
-                contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">${h.yapan}</div></div>`).join('')}</div>`;
-            } else {
-                contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok</div>';
-            }
-        }
-        
-        async function transfer(hareketTipi) {
-            const alici_id = document.getElementById('alici_id')?.value;
-            const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
-            const miktar = document.getElementById('miktar')?.value;
-            if (!palet_tipi_id || !miktar || miktar <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
-            const body = { hareket_tipi: hareketTipi, palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar) };
-            if (alici_id) body.alici_id = parseInt(alici_id);
-            const result = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-            if (result && result.status === 200 && result.data.success) {
-                showToast(result.data.mesaj);
-                loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok');
-            } else {
-                showToast(result?.data?.hata || 'Transfer başarısız', 'error');
-            }
-        }
-        
-        async function dagiticiEkle() {
-            const kullanici_adi = document.getElementById('kullanici_adi').value;
-            const ad_soyad = document.getElementById('ad_soyad').value;
-            const sifre = document.getElementById('sifre').value;
-            const result = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi, ad_soyad, sifre }) });
-            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('dagiticiStoklar'); }
-            else { showToast(result?.data?.hata || 'Ekleme başarısız', 'error'); }
-        }
-        
-        async function musteriEkle() {
-            const musteri_kodu = document.getElementById('musteri_kodu').value;
-            const musteri_adi = document.getElementById('musteri_adi').value;
-            const bagli_dagitici_id = document.getElementById('bagli_dagitici_id').value;
-            const result = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu, musteri_adi, bagli_dagitici_id: parseInt(bagli_dagitici_id) }) });
-            if (result && result.status === 200 && result.data.success) { showToast(result.data.mesaj); loadContent('musteriStoklar'); }
-            else { showToast(result?.data?.hata || 'Ekleme başarısız', 'error'); }
-        }
+    } catch (error) {
+        sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ Yükleme hatası: ${error.message}</div>`;
+        showToast('Yükleme hatası', 'error');
+    }
+}
+
+async function excelMusterileriKaydet() {
+    const dagitici_id = document.getElementById('dagiticiSecim').value;
+    
+    const result = await apiCall('/api/musteri_excel_kaydet', {
+        method: 'POST',
+        body: JSON.stringify({
+            dagitici_id: parseInt(dagitici_id),
+            musteriler: excelMusteriler
+        })
+    });
+    
+    if (result && result.status === 200 && result.data.success) {
+        showToast(result.data.mesaj);
+        loadContent('musteriStoklar');
+    } else {
+        showToast(result?.data?.hata || 'Kaydetme başarısız', 'error');
+    }
+}
         
         const savedToken = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user');
