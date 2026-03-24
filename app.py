@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import sqlite3
 import hashlib
@@ -6,6 +6,8 @@ import jwt
 import datetime
 import os
 import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill
+from io import BytesIO
 from functools import wraps
 
 app = Flask(__name__, static_folder='static')
@@ -31,6 +33,7 @@ HAREKET_DEPO_DAGITICI = "DEPO_DAGITICI"
 HAREKET_DAGITICI_MUSTERI = "DAGITICI_MUSTERI"
 HAREKET_MUSTERI_DAGITICI = "MUSTERI_DAGITICI"
 HAREKET_DAGITICI_DEPO = "DAGITICI_DEPO"
+HAREKET_DEPO_STOK = "DEPO_STOK_HAREKET"
 
 
 def hash_sifre(sifre):
@@ -859,7 +862,8 @@ def get_hareketler(current_user):
             'DEPO_DAGITICI': 'Depo→Dağıtıcı',
             'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri',
             'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı',
-            'DAGITICI_DEPO': 'Dağıtıcı→Depo'
+            'DAGITICI_DEPO': 'Dağıtıcı→Depo',
+            'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
         }.get(h[3], h[3])
         
         hareketler.append({
@@ -875,7 +879,339 @@ def get_hareketler(current_user):
     return jsonify(hareketler)
 
 
-# ==================== EXCEL YÜKLEME (Çift Kayıt Engellemeli) ====================
+# ==================== DEPO STOK HAREKETLERİ ====================
+
+@app.route('/api/depo_stok_hareket', methods=['POST'])
+@token_required
+def depo_stok_hareket(current_user):
+    """Depo stok arttırma/azaltma (sadece depocu)"""
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    data = request.get_json()
+    palet_tipi_id = data.get('palet_tipi_id')
+    miktar = data.get('miktar')
+    islem_tipi = data.get('islem_tipi')
+    aciklama = data.get('aciklama', '')
+    
+    if not palet_tipi_id or not miktar or not islem_tipi:
+        return jsonify({'hata': 'Eksik parametreler'}), 400
+    
+    if miktar <= 0:
+        return jsonify({'hata': 'Miktar pozitif olmalı'}), 400
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT stok_kodu, palet_adi FROM palet_tipleri WHERE id = ?", (palet_tipi_id,))
+    palet = cursor.fetchone()
+    if not palet:
+        conn.close()
+        return jsonify({'hata': 'Geçersiz palet tipi'}), 400
+    
+    mevcut = stok_miktari_getir(SAHIP_TIP_DEPO, 0, palet_tipi_id)
+    
+    if islem_tipi == 'azalt':
+        if mevcut < miktar:
+            conn.close()
+            return jsonify({'hata': f'Yetersiz stok! Mevcut: {mevcut}'}), 400
+        yeni_miktar = mevcut - miktar
+        degisim = -miktar
+        hareket_aciklama = f"STOK AZALTMA: {miktar} adet {palet[1]} azaltıldı. Sebep: {aciklama}"
+    else:
+        yeni_miktar = mevcut + miktar
+        degisim = +miktar
+        hareket_aciklama = f"STOK ARTTIRMA: {miktar} adet {palet[1]} eklendi. Sebep: {aciklama}"
+    
+    basarili, hata = stok_guncelle(SAHIP_TIP_DEPO, 0, palet_tipi_id, degisim)
+    if not basarili:
+        conn.close()
+        return jsonify({'hata': hata}), 400
+    
+    hareket_kaydet(
+        current_user['id'],
+        "DEPO_STOK_HAREKET",
+        SAHIP_TIP_DEPO, 0,
+        SAHIP_TIP_DEPO, 0,
+        palet_tipi_id, miktar,
+        hareket_aciklama
+    )
+    
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'mesaj': f'{palet[1]} stoğu güncellendi. Yeni miktar: {yeni_miktar}',
+        'yeni_miktar': yeni_miktar
+    })
+
+
+# ==================== RAPORLAR VE İSTATİSTİKLER ====================
+
+@app.route('/api/rapor/hareketler', methods=['POST'])
+@token_required
+def rapor_hareketler(current_user):
+    """Tarih aralığına göre hareket raporu"""
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    data = request.get_json()
+    baslangic = data.get('baslangic_tarihi')
+    bitis = data.get('bitis_tarihi')
+    
+    if not baslangic or not bitis:
+        return jsonify({'hata': 'Başlangıç ve bitiş tarihi gerekli'}), 400
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi,
+               pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama
+        FROM hareketler h
+        JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+        JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+        WHERE date(h.tarih) BETWEEN ? AND ?
+        ORDER BY h.tarih DESC
+    ''', (baslangic, bitis))
+    
+    sonuc = cursor.fetchall()
+    conn.close()
+    
+    hareketler = []
+    for h in sonuc:
+        tip_text = {
+            'DEPO_DAGITICI': 'Depo→Dağıtıcı',
+            'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri',
+            'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı',
+            'DAGITICI_DEPO': 'Dağıtıcı→Depo',
+            'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
+        }.get(h[3], h[3])
+        
+        hareketler.append({
+            'tarih': h[0],
+            'yapan': f"{h[2]} ({h[1]})",
+            'islem_tipi': tip_text,
+            'stok_kodu': h[4],
+            'palet_adi': h[5],
+            'miktar': h[6],
+            'aciklama': h[7]
+        })
+    
+    return jsonify(hareketler)
+
+
+@app.route('/api/rapor/istatistikler', methods=['GET'])
+@token_required
+def rapor_istatistikler(current_user):
+    """İstatistikler"""
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # En çok transfer yapan dağıtıcılar
+    cursor.execute('''
+        SELECT u.kullanici_adi, u.ad_soyad, COUNT(*) as transfer_sayisi
+        FROM hareketler h
+        JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+        WHERE u.tip = 'DAGITICI'
+        GROUP BY u.id
+        ORDER BY transfer_sayisi DESC
+        LIMIT 10
+    ''')
+    en_cok_transfer = [{'kullanici_adi': r[0], 'ad_soyad': r[1], 'transfer_sayisi': r[2]} for r in cursor.fetchall()]
+    
+    # En çok kullanılan palet tipi
+    cursor.execute('''
+        SELECT pt.stok_kodu, pt.palet_adi, COUNT(*) as kullanim_sayisi, SUM(h.miktar) as toplam_miktar
+        FROM hareketler h
+        JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+        WHERE h.hareket_tipi != 'DEPO_STOK_HAREKET'
+        GROUP BY pt.id
+        ORDER BY kullanim_sayisi DESC
+    ''')
+    en_cok_palet = [{'stok_kodu': r[0], 'palet_adi': r[1], 'kullanim_sayisi': r[2], 'toplam_miktar': r[3]} for r in cursor.fetchall()]
+    
+    # Günlük hareketler
+    cursor.execute('''
+        SELECT date(tarih) as gun, COUNT(*) as sayi
+        FROM hareketler
+        WHERE date(tarih) >= date('now', '-30 days')
+        GROUP BY date(tarih)
+        ORDER BY gun DESC
+    ''')
+    gunluk = [{'tarih': r[0], 'sayi': r[1]} for r in cursor.fetchall()]
+    
+    conn.close()
+    
+    return jsonify({
+        'en_cok_transfer_yapan': en_cok_transfer,
+        'en_cok_kullanilan_palet': en_cok_palet,
+        'gunluk_hareketler': gunluk
+    })
+
+
+# ==================== EXCEL EXPORT ====================
+
+@app.route('/api/rapor/export', methods=['POST'])
+@token_required
+def rapor_export(current_user):
+    """Excel export"""
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    data = request.get_json()
+    rapor_tipi = data.get('rapor_tipi')
+    baslangic = data.get('baslangic_tarihi')
+    bitis = data.get('bitis_tarihi')
+    
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    workbook = openpyxl.Workbook()
+    
+    if rapor_tipi == 'hareketler':
+        sheet = workbook.active
+        sheet.title = "Hareketler"
+        
+        headers = ['Tarih', 'Yapan Kullanıcı', 'İşlem Tipi', 'Stok Kodu', 'Palet Adı', 'Miktar', 'Açıklama']
+        for col, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="2196F3", end_color="2196F3", fill_type="solid")
+        
+        if baslangic and bitis:
+            cursor.execute('''
+                SELECT h.tarih, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama
+                FROM hareketler h
+                JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+                JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+                WHERE date(h.tarih) BETWEEN ? AND ?
+                ORDER BY h.tarih DESC
+            ''', (baslangic, bitis))
+        else:
+            cursor.execute('''
+                SELECT h.tarih, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama
+                FROM hareketler h
+                JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+                JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+                ORDER BY h.tarih DESC
+                LIMIT 1000
+            ''')
+        
+        for row_idx, row in enumerate(cursor.fetchall(), 2):
+            tip_text = {
+                'DEPO_DAGITICI': 'Depo→Dağıtıcı',
+                'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri',
+                'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı',
+                'DAGITICI_DEPO': 'Dağıtıcı→Depo',
+                'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
+            }.get(row[2], row[2])
+            
+            sheet.cell(row=row_idx, column=1, value=row[0])
+            sheet.cell(row=row_idx, column=2, value=row[1])
+            sheet.cell(row=row_idx, column=3, value=tip_text)
+            sheet.cell(row=row_idx, column=4, value=row[3])
+            sheet.cell(row=row_idx, column=5, value=row[4])
+            sheet.cell(row=row_idx, column=6, value=row[5])
+            sheet.cell(row=row_idx, column=7, value=row[6])
+        
+        for col in range(1, 8):
+            sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
+            
+    elif rapor_tipi == 'stoklar':
+        sheet = workbook.active
+        sheet.title = "Stoklar"
+        
+        headers = ['Stok Sahibi', 'Stok Kodu', 'Palet Adı', 'Miktar']
+        for col, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="2196F3", end_color="2196F3", fill_type="solid")
+        
+        row_idx = 2
+        cursor.execute('''
+            SELECT pt.stok_kodu, pt.palet_adi, s.miktar
+            FROM stoklar s
+            JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            WHERE s.stok_sahibi_tip = 'DEPO'
+        ''')
+        for row in cursor.fetchall():
+            sheet.cell(row=row_idx, column=1, value="DEPO")
+            sheet.cell(row=row_idx, column=2, value=row[0])
+            sheet.cell(row=row_idx, column=3, value=row[1])
+            sheet.cell(row=row_idx, column=4, value=row[2])
+            row_idx += 1
+        
+        cursor.execute('''
+            SELECT u.ad_soyad, pt.stok_kodu, pt.palet_adi, s.miktar
+            FROM stoklar s
+            JOIN kullanicilar u ON s.stok_sahibi_id = u.id
+            JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            WHERE s.stok_sahibi_tip = 'DAGITICI' AND s.miktar > 0
+            ORDER BY u.ad_soyad
+        ''')
+        for row in cursor.fetchall():
+            sheet.cell(row=row_idx, column=1, value=row[0])
+            sheet.cell(row=row_idx, column=2, value=row[1])
+            sheet.cell(row=row_idx, column=3, value=row[2])
+            sheet.cell(row=row_idx, column=4, value=row[3])
+            row_idx += 1
+        
+        cursor.execute('''
+            SELECT m.musteri_kodu, m.musteri_adi, pt.stok_kodu, pt.palet_adi, s.miktar
+            FROM stoklar s
+            JOIN musteriler m ON s.stok_sahibi_id = m.id
+            JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
+            ORDER BY m.musteri_adi
+        ''')
+        for row in cursor.fetchall():
+            sheet.cell(row=row_idx, column=1, value=f"{row[0]} - {row[1]}")
+            sheet.cell(row=row_idx, column=2, value=row[2])
+            sheet.cell(row=row_idx, column=3, value=row[3])
+            sheet.cell(row=row_idx, column=4, value=row[4])
+            row_idx += 1
+        
+        for col in range(1, 5):
+            sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 25
+            
+    elif rapor_tipi == 'musteriler':
+        sheet = workbook.active
+        sheet.title = "Müşteriler"
+        
+        headers = ['Müşteri Kodu', 'Müşteri Adı', 'Tabela Adı']
+        for col, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="2196F3", end_color="2196F3", fill_type="solid")
+        
+        cursor.execute('SELECT musteri_kodu, musteri_adi, tabela_adi FROM musteriler ORDER BY musteri_adi')
+        for row_idx, row in enumerate(cursor.fetchall(), 2):
+            sheet.cell(row=row_idx, column=1, value=row[0])
+            sheet.cell(row=row_idx, column=2, value=row[1])
+            sheet.cell(row=row_idx, column=3, value=row[2])
+        
+        for col in range(1, 4):
+            sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 25
+    
+    conn.close()
+    
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'{rapor_tipi}_raporu.xlsx'
+    )
+
+
+# ==================== EXCEL YÜKLEME ====================
 
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
@@ -912,7 +1248,6 @@ def musteri_excel_yukle(current_user):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Mevcut müşteri kodlarını al
     cursor.execute('SELECT musteri_kodu FROM musteriler')
     mevcut_kodlar = {k[0] for k in cursor.fetchall()}
     
@@ -934,7 +1269,6 @@ def musteri_excel_yukle(current_user):
             continue
         
         if musteri_kodu in mevcut_kodlar:
-            # Var olan müşteriyi güncelle
             try:
                 cursor.execute('''
                     UPDATE musteriler 
@@ -945,7 +1279,6 @@ def musteri_excel_yukle(current_user):
             except Exception as e:
                 hatalar.append(f"Satır {row}: Güncelleme hatası - {str(e)}")
         else:
-            # Yeni müşteri ekle
             try:
                 cursor.execute('''
                     INSERT INTO musteriler (musteri_kodu, musteri_adi, tabela_adi)
@@ -954,7 +1287,6 @@ def musteri_excel_yukle(current_user):
                 
                 musteri_id = cursor.lastrowid
                 
-                # Stoklarını oluştur
                 cursor.execute("SELECT id FROM palet_tipleri")
                 paletler = cursor.fetchall()
                 for palet in paletler:
