@@ -1,476 +1,3 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#2196F3">
-    <title>Palet Takip Sistemi</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-            padding-bottom: 20px;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #2196F3, #1976D2);
-            color: white;
-            padding: 20px 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .header h1 {
-            font-size: 1.5rem;
-            margin-bottom: 5px;
-        }
-
-        .header .user-info {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 10px;
-        }
-
-        .logout-btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            cursor: pointer;
-        }
-
-        .container {
-            padding: 16px;
-        }
-
-        .menu-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .menu-btn {
-            background: white;
-            border: none;
-            padding: 10px 4px;
-            border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            font-size: 0.7rem;
-            font-weight: 500;
-            color: #2196F3;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .menu-btn:active {
-            transform: scale(0.96);
-            background: #f0f0f0;
-        }
-
-        .menu-btn .icon {
-            font-size: 1.3rem;
-        }
-
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .card-title {
-            font-weight: 600;
-            font-size: 1.1rem;
-            margin-bottom: 12px;
-            color: #1976D2;
-            border-left: 3px solid #2196F3;
-            padding-left: 10px;
-        }
-
-        .stok-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .stok-table th, .stok-table td {
-            padding: 10px 8px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .stok-table th {
-            font-weight: 600;
-            color: #666;
-            font-size: 0.8rem;
-        }
-
-        .stok-table td {
-            font-size: 0.9rem;
-        }
-
-        .miktar {
-            font-weight: 600;
-            text-align: right;
-        }
-
-        .miktar.az {
-            color: #f44336;
-        }
-
-        .miktar.orta {
-            color: #ff9800;
-        }
-
-        .miktar.cok {
-            color: #4caf50;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 0.85rem;
-            color: #666;
-            margin-bottom: 5px;
-        }
-
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-family: inherit;
-        }
-
-        .btn {
-            background: #2196F3;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            width: 100%;
-        }
-
-        .btn:active {
-            background: #1976D2;
-        }
-
-        .btn-small {
-            border: none;
-            border-radius: 6px;
-            color: white;
-            cursor: pointer;
-            font-size: 0.8rem;
-            padding: 6px 12px;
-        }
-
-        .btn-secondary {
-            background: #9e9e9e;
-        }
-
-        .hareket-item {
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .hareket-item .tarih {
-            font-size: 0.7rem;
-            color: #999;
-        }
-
-        .hareket-item .islem {
-            font-weight: 500;
-            margin: 5px 0;
-        }
-
-        .hareket-item .detay {
-            font-size: 0.85rem;
-            color: #666;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            background: #333;
-            color: white;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-            z-index: 1000;
-            animation: fadeInUp 0.3s ease;
-        }
-
-        .toast.success {
-            background: #4caf50;
-        }
-
-        .toast.error {
-            background: #f44336;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-
-        .login-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #2196F3, #1976D2);
-            padding: 20px;
-        }
-
-        .login-card {
-            background: white;
-            border-radius: 20px;
-            padding: 30px 24px;
-            width: 100%;
-            max-width: 350px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        }
-
-        .login-card h2 {
-            text-align: center;
-            color: #2196F3;
-            margin-bottom: 24px;
-        }
-
-        .musteri-item {
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .musteri-item:hover {
-            background: #f5f5f5;
-        }
-
-        .musteri-list-item {
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-        }
-
-        @media (max-width: 600px) {
-            .menu-grid {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 6px;
-            }
-            .menu-btn {
-                padding: 8px 2px;
-                font-size: 0.65rem;
-            }
-            .menu-btn .icon {
-                font-size: 1.2rem;
-            }
-        }
-
-        @media (max-width: 450px) {
-            .menu-grid {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 5px;
-            }
-            .menu-btn {
-                padding: 6px 2px;
-                font-size: 0.6rem;
-            }
-            .menu-btn .icon {
-                font-size: 1.1rem;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div id="app"></div>
-
-    <script>
-        const API_URL = window.location.origin;
-        let token = null;
-        let currentUser = null;
-
-        function showToast(message, type = 'success') {
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        async function apiCall(endpoint, options = {}) {
-            const headers = {
-                'Content-Type': 'application/json',
-                ...options.headers
-            };
-            
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            
-            const response = await fetch(`${API_URL}${endpoint}`, {
-                ...options,
-                headers
-            });
-            
-            if (response.status === 401) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                renderLogin();
-                return null;
-            }
-            
-            const data = await response.json();
-            return { status: response.status, data };
-        }
-
-        function renderLogin() {
-            document.getElementById('app').innerHTML = `
-                <div class="login-container">
-                    <div class="login-card">
-                        <h2>🏭 Palet Takip</h2>
-                        <div class="form-group">
-                            <label>Kullanıcı Adı</label>
-                            <input type="text" id="kullanici_adi" placeholder="Kullanıcı adı">
-                        </div>
-                        <div class="form-group">
-                            <label>Şifre</label>
-                            <input type="password" id="sifre" placeholder="Şifre">
-                        </div>
-                        <button class="btn" onclick="login()">Giriş Yap</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        async function login() {
-            const kullanici_adi = document.getElementById('kullanici_adi').value;
-            const sifre = document.getElementById('sifre').value;
-            
-            if (!kullanici_adi || !sifre) {
-                showToast('Kullanıcı adı ve şifre giriniz', 'error');
-                return;
-            }
-            
-            const result = await apiCall('/api/login', {
-                method: 'POST',
-                body: JSON.stringify({ kullanici_adi, sifre })
-            });
-            
-            if (result && result.status === 200 && result.data.success) {
-                token = result.data.token;
-                currentUser = result.data.kullanici;
-                localStorage.setItem('token', token);
-                localStorage.setItem('user', JSON.stringify(currentUser));
-                showToast('Giriş başarılı');
-                renderMain();
-            } else {
-                showToast(result?.data?.hata || 'Giriş başarısız', 'error');
-            }
-        }
-
-        function logout() {
-            token = null;
-            currentUser = null;
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            renderLogin();
-        }
-
-        function renderMain() {
-            if (!currentUser) return;
-            
-            const isDepocu = currentUser.tip === 'DEPOCU';
-            
-            document.getElementById('app').innerHTML = `
-                <div class="header">
-                    <h1>🏭 Palet Takip</h1>
-                    <div class="user-info">
-                        <span>👤 ${currentUser.ad_soyad} (${currentUser.tip === 'DEPOCU' ? 'Depocu' : 'Dağıtıcı'})</span>
-                        <button class="logout-btn" onclick="logout()">Çıkış</button>
-                    </div>
-                </div>
-                <div class="container">
-                    <div class="menu-grid" id="menuGrid"></div>
-                    <div id="content"></div>
-                </div>
-            `;
-            
-            let menus = [];
-            
-            if (isDepocu) {
-                menus = [
-                    { icon: '📦', text: 'Depo Stoğu', action: 'depoStok' },
-                    { icon: '🚚', text: 'Dağıtıcı Stokları', action: 'dagiticiStoklar' },
-                    { icon: '🏪', text: 'Müşteri Stokları', action: 'musteriStoklar' },
-                    { icon: '➡️', text: 'Depo → Dağıtıcı', action: 'depoDagiticiTransfer' },
-                    { icon: '⬅️', text: 'Dağıtıcıdan İade', action: 'dagiticiIade' },
-                    { icon: '🏷️', text: 'Palet Tipleri', action: 'paletTipleri' },
-                    { icon: '👥', text: 'Kullanıcılar', action: 'kullaniciYonetim' },
-                    { icon: '📂', text: 'Excel Yükle', action: 'excelYukle' },
-                    { icon: '➕', text: 'Dağıtıcı Ekle', action: 'dagiticiEkle' },
-                    { icon: '👤', text: 'Müşteri Ekle', action: 'musteriEkle' },
-                    { icon: '📋', text: 'Hareketler', action: 'hareketler' }
-                ];
-            } else {
-                menus = [
-                    { icon: '📦', text: 'Kendi Stoğum', action: 'kendiStok' },
-                    { icon: '🏪', text: 'Müşteri Stokları', action: 'musteriStoklar' },
-                    { icon: '➡️', text: 'Müşteriye Ver', action: 'musteriyeVer' },
-                    { icon: '⬅️', text: 'Müşteriden Al', action: 'musteridenAl' },
-                    { icon: '🏭', text: 'Depoya İade', action: 'depoyaIade' },
-                    { icon: '📋', text: 'Hareketlerim', action: 'hareketler' }
-                ];
-            }
-            
-            const menuGrid = document.getElementById('menuGrid');
-            menuGrid.innerHTML = menus.map(menu => `
-                <button class="menu-btn" onclick="loadContent('${menu.action}')">
-                    <span class="icon">${menu.icon}</span>
-                    <span>${menu.text}</span>
-                </button>
-            `).join('');
-            
-            loadContent(isDepocu ? 'depoStok' : 'kendiStok');
-        }
-        
         async function loadContent(action) {
             const contentDiv = document.getElementById('content');
             contentDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
@@ -489,6 +16,9 @@
             else if (action === 'paletTipleri') await showPaletTipleri(contentDiv);
             else if (action === 'kullaniciYonetim') await showKullaniciYonetim(contentDiv);
             else if (action === 'excelYukle') showExcelYukle(contentDiv);
+            else if (action === 'excelExport') showExcelExport(contentDiv);
+            else if (action === 'raporlar') await showRaporlar(contentDiv);
+            else if (action === 'depoStokDuzenle') showDepoStokDuzenle(contentDiv);
             else if (action === 'hareketler') await showHareketler(contentDiv);
         }
         
@@ -500,7 +30,7 @@
                     <div class="card">
                         <div class="card-title">${baslik}</div>
                         <table class="stok-table">
-                            <thead><tr><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead>
+                            <thead><tr><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></tr></thead>
                             <tbody>
                                 ${stoklar.map(s => `
                                     <tr>
@@ -939,18 +469,18 @@
                     <div class="card-title">🏷️ Palet Tipleri Yönetimi</div>
                     <button class="btn" style="margin-bottom: 16px; background: #4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button>
                     <table class="stok-table">
-                        <thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th> </thead>
+                        <thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></tr></thead>
                         <tbody>
                             ${paletler.data.map(p => `
                                 <tr>
-                                    <td>${p.id} </td>
-                                    <td>${p.stok_kodu} </td>
-                                    <td>${p.palet_adi} </td>
+                                    <td>${p.id}</td>
+                                    <td>${p.stok_kodu}</td>
+                                    <td>${p.palet_adi}</td>
                                     <td>
                                         <button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button>
                                         <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button>
-                                     </td>
-                                 </tr>
+                                    </td>
+                                </tr>
                             `).join('')}
                         </tbody>
                     </table>
@@ -1042,22 +572,16 @@
                     <div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div>
                     <button class="btn" style="margin-bottom: 16px; background: #4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button>
                     <table class="stok-table">
-                        <thead> <th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th> </thead>
+                        <thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th> </thead>
                         <tbody>
                             ${kullanicilar.data.map(k => `
                                 <tr>
-                                    <td>${k.id}</td>
-                                    <td>${k.kullanici_adi}</td>
-                                    <td>${k.ad_soyad}</td>
-                                    <td>
+                                    <td>${k.id}  \n                                    <td>${k.kullanici_adi}  \n                                    <td>${k.ad_soyad}  \n                                    <td>
                                         <button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button>
                                         <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button>
-                                    </td>
-                                </tr>
-                            `).join('')}
+                                     \n                                 \n                            `).join('')}
                         </tbody>
-                    </table>
-                </div>
+                    \n                </div>
                 <div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
                     <div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;">
                         <h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3>
@@ -1216,10 +740,286 @@
             }
         }
         
+        function showExcelExport(contentDiv) {
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📤 Veri Dışa Aktarma (Excel)</div>
+                    <div class="form-group">
+                        <label>Rapor Tipi</label>
+                        <select id="export_tipi">
+                            <option value="hareketler">📋 Hareketler</option>
+                            <option value="stoklar">📦 Stoklar (Depo, Dağıtıcı, Müşteri)</option>
+                            <option value="musteriler">🏪 Müşteri Listesi</option>
+                        </select>
+                    </div>
+                    <div id="tarihSecim" style="display:none;">
+                        <div class="form-group">
+                            <label>Başlangıç Tarihi</label>
+                            <input type="date" id="export_baslangic">
+                        </div>
+                        <div class="form-group">
+                            <label>Bitiş Tarihi</label>
+                            <input type="date" id="export_bitis">
+                        </div>
+                    </div>
+                    <button class="btn" onclick="excelExportYap()" style="background:#4caf50;">Excel Olarak İndir</button>
+                </div>
+            `;
+            
+            document.getElementById('export_tipi').addEventListener('change', function() {
+                const tarihSecim = document.getElementById('tarihSecim');
+                if (this.value === 'hareketler') {
+                    tarihSecim.style.display = 'block';
+                } else {
+                    tarihSecim.style.display = 'none';
+                }
+            });
+        }
+        
+        async function excelExportYap() {
+            const rapor_tipi = document.getElementById('export_tipi').value;
+            let body = { rapor_tipi: rapor_tipi };
+            
+            if (rapor_tipi === 'hareketler') {
+                const baslangic = document.getElementById('export_baslangic').value;
+                const bitis = document.getElementById('export_bitis').value;
+                if (!baslangic || !bitis) {
+                    showToast('Tarih aralığı seçin', 'error');
+                    return;
+                }
+                body.baslangic_tarihi = baslangic;
+                body.bitis_tarihi = bitis;
+            }
+            
+            const response = await fetch(`${API_URL}/api/rapor/export`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(body)
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const tarih = new Date().toISOString().slice(0,10);
+                a.download = `${rapor_tipi}_raporu_${tarih}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showToast('Excel dosyası indiriliyor');
+            } else {
+                showToast('Rapor oluşturulamadı', 'error');
+            }
+        }
+        
+        async function showRaporlar(contentDiv) {
+            const istatistikler = await apiCall('/api/rapor/istatistikler');
+            
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📊 İstatistikler</div>
+                    <div id="istatistikler"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">📅 Tarih Aralığı Raporu</div>
+                    <div class="form-group">
+                        <label>Başlangıç Tarihi</label>
+                        <input type="date" id="baslangic_tarihi">
+                    </div>
+                    <div class="form-group">
+                        <label>Bitiş Tarihi</label>
+                        <input type="date" id="bitis_tarihi">
+                    </div>
+                    <button class="btn" onclick="tarihRaporuGoster()" style="background:#4caf50;">Raporu Göster</button>
+                    <button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel'e Aktar</button>
+                    <div id="tarihRaporuSonuc" style="margin-top:16px;"></div>
+                </div>
+            `;
+            
+            if (istatistikler && istatistikler.data) {
+                const data = istatistikler.data;
+                let html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>';
+                if (data.en_cok_transfer_yapan && data.en_cok_transfer_yapan.length > 0) {
+                    html += '<table class="stok-table"><thead><tr><th>Dağıtıcı</th><th>Transfer Sayısı</th></tr></thead><tbody>';
+                    for (const d of data.en_cok_transfer_yapan) {
+                        html += `<tr><td>${d.ad_soyad}</td><td>${d.transfer_sayisi}</td></tr>`;
+                    }
+                    html += '</tbody></table>';
+                } else {
+                    html += '<p>Henüz transfer yok</p>';
+                }
+                
+                html += '<h3 style="margin-top:16px;">📦 En Çok Kullanılan Palet Tipleri</h3>';
+                if (data.en_cok_kullanilan_palet && data.en_cok_kullanilan_palet.length > 0) {
+                    html += '<table class="stok-table"><thead><tr><th>Palet Tipi</th><th>Kullanım Sayısı</th><th>Toplam Miktar</th></tr></thead><tbody>';
+                    for (const p of data.en_cok_kullanilan_palet) {
+                        html += `<tr><td>${p.palet_adi}</td><td>${p.kullanim_sayisi}</td><td>${p.toplam_miktar}</td></tr>`;
+                    }
+                    html += '</tbody></table>';
+                } else {
+                    html += '<p>Henüz hareket yok</p>';
+                }
+                
+                document.getElementById('istatistikler').innerHTML = html;
+            }
+        }
+        
+        async function tarihRaporuGoster() {
+            const baslangic = document.getElementById('baslangic_tarihi').value;
+            const bitis = document.getElementById('bitis_tarihi').value;
+            
+            if (!baslangic || !bitis) {
+                showToast('Tarih aralığı seçin', 'error');
+                return;
+            }
+            
+            const sonucDiv = document.getElementById('tarihRaporuSonuc');
+            sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+            
+            const result = await apiCall('/api/rapor/hareketler', {
+                method: 'POST',
+                body: JSON.stringify({ baslangic_tarihi: baslangic, bitis_tarihi: bitis })
+            });
+            
+            if (result && result.data) {
+                if (result.data.length === 0) {
+                    sonucDiv.innerHTML = '<div class="card">📭 Bu tarih aralığında hareket yok</div>';
+                    return;
+                }
+                
+                let html = `<div class="card"><div class="card-title">📋 ${baslangic} - ${bitis} Tarihleri Arası Hareketler</div>`;
+                for (const h of result.data) {
+                    html += `
+                        <div class="hareket-item">
+                            <div class="tarih">${h.tarih}</div>
+                            <div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div>
+                            <div class="detay">👤 ${h.yapan}</div>
+                            ${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}
+                        </div>
+                    `;
+                }
+                html += '</div>';
+                sonucDiv.innerHTML = html;
+            }
+        }
+        
+        async function tarihRaporuExport() {
+            const baslangic = document.getElementById('baslangic_tarihi').value;
+            const bitis = document.getElementById('bitis_tarihi').value;
+            
+            if (!baslangic || !bitis) {
+                showToast('Tarih aralığı seçin', 'error');
+                return;
+            }
+            
+            const response = await fetch(`${API_URL}/api/rapor/export`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ rapor_tipi: 'hareketler', baslangic_tarihi: baslangic, bitis_tarihi: bitis })
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `hareket_raporu_${baslangic}_${bitis}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showToast('Excel raporu indiriliyor');
+            } else {
+                showToast('Rapor oluşturulamadı', 'error');
+            }
+        }
+        
+        function showDepoStokDuzenle(contentDiv) {
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">✏️ Depo Stok Düzenle</div>
+                    <div class="form-group">
+                        <label>İşlem Tipi</label>
+                        <select id="islem_tipi" onchange="aciklamaPlaceholder()">
+                            <option value="arttir">📈 Stok Arttır</option>
+                            <option value="azalt">📉 Stok Azalt</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Palet Tipi</label>
+                        <select id="palet_tipi_id"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Miktar</label>
+                        <input type="number" id="miktar" placeholder="Miktar">
+                    </div>
+                    <div class="form-group">
+                        <label>Açıklama / Sebep</label>
+                        <input type="text" id="aciklama" placeholder="Neden arttırılıyor/azaltılıyor?">
+                    </div>
+                    <button class="btn" onclick="depoStokHareket()">İşlemi Gerçekleştir</button>
+                </div>
+            `;
+            
+            apiCall('/api/palet_tipleri').then(result => {
+                if (result && result.data) {
+                    const select = document.getElementById('palet_tipi_id');
+                    select.innerHTML = result.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('');
+                }
+            });
+        }
+        
+        function aciklamaPlaceholder() {
+            const islem = document.getElementById('islem_tipi').value;
+            const aciklama = document.getElementById('aciklama');
+            if (islem === 'arttir') {
+                aciklama.placeholder = 'Örn: Yeni sipariş geldi, Sayım farkı, İade vb.';
+            } else {
+                aciklama.placeholder = 'Örn: Üretimde kullanıldı, Hasarlı çıktı, Sevkiyat vb.';
+            }
+        }
+        
+        async function depoStokHareket() {
+            const palet_tipi_id = document.getElementById('palet_tipi_id').value;
+            const miktar = document.getElementById('miktar').value;
+            const islem_tipi = document.getElementById('islem_tipi').value;
+            const aciklama = document.getElementById('aciklama').value;
+            
+            if (!palet_tipi_id || !miktar || miktar <= 0) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            if (!aciklama) {
+                showToast('Açıklama giriniz', 'error');
+                return;
+            }
+            
+            const result = await apiCall('/api/depo_stok_hareket', {
+                method: 'POST',
+                body: JSON.stringify({ palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar), islem_tipi, aciklama })
+            });
+            
+            if (result && result.status === 200 && result.data.success) {
+                showToast(result.data.mesaj);
+                loadContent('depoStok');
+            } else {
+                showToast(result?.data?.hata || 'İşlem başarısız', 'error');
+            }
+        }
+        
         async function showHareketler(contentDiv) {
             const result = await apiCall('/api/hareketler');
             if (result && result.data && result.data.length > 0) {
-                contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">${h.yapan}</div></div>`).join('')}</div>`;
+                contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}</div>`).join('')}</div>`;
             } else {
                 contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok</div>';
             }
