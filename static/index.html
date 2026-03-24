@@ -56,18 +56,18 @@
 
         .menu-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
             margin-bottom: 20px;
         }
 
         .menu-btn {
             background: white;
             border: none;
-            padding: 16px 12px;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            font-size: 0.9rem;
+            padding: 10px 4px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 0.7rem;
             font-weight: 500;
             color: #2196F3;
             cursor: pointer;
@@ -75,16 +75,16 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
         }
 
         .menu-btn:active {
-            transform: scale(0.98);
+            transform: scale(0.96);
             background: #f0f0f0;
         }
 
         .menu-btn .icon {
-            font-size: 1.8rem;
+            font-size: 1.3rem;
         }
 
         .card {
@@ -160,11 +160,6 @@
             border-radius: 8px;
             font-size: 1rem;
             font-family: inherit;
-        }
-
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #2196F3;
         }
 
         .btn {
@@ -279,77 +274,49 @@
             margin-bottom: 24px;
         }
 
-        @media (max-width: 480px) {
+        .musteri-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .musteri-item:hover {
+            background: #f5f5f5;
+        }
+
+        .musteri-list-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        @media (max-width: 600px) {
             .menu-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .menu-btn {
+                padding: 8px 2px;
+                font-size: 0.65rem;
+            }
+            .menu-btn .icon {
+                font-size: 1.2rem;
             }
         }
-        /* Menü Butonları - Daha Küçük */
-.menu-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 20px;
-}
 
-.menu-btn {
-    background: white;
-    border: none;
-    padding: 10px 4px;
-    border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: #2196F3;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
-.menu-btn:active {
-    transform: scale(0.96);
-    background: #f0f0f0;
-}
-
-.menu-btn .icon {
-    font-size: 1.3rem;
-}
-
-/* Telefon için (dar ekran) */
-@media (max-width: 600px) {
-    .menu-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
-    }
-    
-    .menu-btn {
-        padding: 8px 2px;
-        font-size: 0.65rem;
-    }
-    
-    .menu-btn .icon {
-        font-size: 1.2rem;
-    }
-}
-
-/* Çok küçük ekranlar için */
-@media (max-width: 450px) {
-    .menu-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 5px;
-    }
-    
-    .menu-btn {
-        padding: 6px 2px;
-        font-size: 0.6rem;
-    }
-    
-    .menu-btn .icon {
-        font-size: 1.1rem;
-    }
+        @media (max-width: 450px) {
+            .menu-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 5px;
+            }
+            .menu-btn {
+                padding: 6px 2px;
+                font-size: 0.6rem;
+            }
+            .menu-btn .icon {
+                font-size: 1.1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -505,25 +472,25 @@
         }
         
         async function loadContent(action) {
-    const contentDiv = document.getElementById('content');
-    contentDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
-    
-    if (action === 'depoStok') await showDepoStok(contentDiv);
-    else if (action === 'kendiStok') await showKendiStok(contentDiv);
-    else if (action === 'dagiticiStoklar') await showDagiticiStoklar(contentDiv);
-    else if (action === 'musteriStoklar') await showMusteriStoklar(contentDiv);
-    else if (action === 'depoDagiticiTransfer') showDepoDagiticiTransfer(contentDiv);
-    else if (action === 'dagiticiIade') showDagiticiIade(contentDiv);
-    else if (action === 'musteriyeVer') showMusteriyeVer(contentDiv);
-    else if (action === 'musteridenAl') showMusteridenAl(contentDiv);
-    else if (action === 'depoyaIade') showDepoyaIade(contentDiv);
-    else if (action === 'dagiticiEkle') showDagiticiEkle(contentDiv);  // ← BURASI
-    else if (action === 'musteriEkle') showMusteriEkle(contentDiv);
-    else if (action === 'paletTipleri') await showPaletTipleri(contentDiv);
-    else if (action === 'kullaniciYonetim') await showKullaniciYonetim(contentDiv);
-    else if (action === 'excelYukle') showExcelYukle(contentDiv);
-    else if (action === 'hareketler') await showHareketler(contentDiv);
-}
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+            
+            if (action === 'depoStok') await showDepoStok(contentDiv);
+            else if (action === 'kendiStok') await showKendiStok(contentDiv);
+            else if (action === 'dagiticiStoklar') await showDagiticiStoklar(contentDiv);
+            else if (action === 'musteriStoklar') await showMusteriStoklar(contentDiv);
+            else if (action === 'depoDagiticiTransfer') showDepoDagiticiTransfer(contentDiv);
+            else if (action === 'dagiticiIade') showDagiticiIade(contentDiv);
+            else if (action === 'musteriyeVer') showMusteriyeVer(contentDiv);
+            else if (action === 'musteridenAl') showMusteridenAl(contentDiv);
+            else if (action === 'depoyaIade') showDepoyaIade(contentDiv);
+            else if (action === 'dagiticiEkle') showDagiticiEkle(contentDiv);
+            else if (action === 'musteriEkle') showMusteriEkle(contentDiv);
+            else if (action === 'paletTipleri') await showPaletTipleri(contentDiv);
+            else if (action === 'kullaniciYonetim') await showKullaniciYonetim(contentDiv);
+            else if (action === 'excelYukle') showExcelYukle(contentDiv);
+            else if (action === 'hareketler') await showHareketler(contentDiv);
+        }
         
         async function showStok(contentDiv, tip, id, baslik, append = false) {
             const result = await apiCall(`/api/stok?tip=${tip}&id=${id}`);
@@ -575,22 +542,159 @@
         }
         
         async function showMusteriStoklar(contentDiv) {
-            let musteriler;
-            if (currentUser.tip === 'DEPOCU') {
-                const result = await apiCall('/api/musteri_listesi');
-                musteriler = result?.data;
-            } else {
-                const result = await apiCall('/api/dagitici_musterileri');
-                musteriler = result?.data;
+            const musteriler = await apiCall('/api/tum_musteriler');
+            
+            if (!musteriler?.data || musteriler.data.length === 0) {
+                contentDiv.innerHTML = '<div class="card">📭 Müşteri bulunmuyor</div>';
+                return;
             }
             
-            if (musteriler && musteriler.length > 0) {
-                contentDiv.innerHTML = '';
-                for (const m of musteriler) {
-                    await showStok(contentDiv, 'MUSTERI', m.id, `${m.musteri_kodu} - ${m.musteri_adi}`, true);
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">🔍 Müşteri Ara ve Seç</div>
+                    <div class="form-group">
+                        <label>🔎 Müşteri Ara (Kod / Ad / Tabela)</label>
+                        <input type="text" id="musteriArama" placeholder="Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteri()" style="width:100%; padding:12px; font-size:1rem;">
+                    </div>
+                    <div id="musteriListesi" style="max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px;">
+                        ${musteriler.data.map(m => `
+                            <div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" data-tabela="${m.tabela_adi}" onclick="musteriSec(this)">
+                                <div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div>
+                                <div style="font-size: 0.8rem; color: #666;">🏷️ ${m.tabela_adi}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div id="musteriIslemler" style="display: none;"></div>
+            `;
+        }
+        
+        function filtreleMusteri() {
+            const arama = document.getElementById('musteriArama').value.toLowerCase().trim();
+            const items = document.querySelectorAll('.musteri-item');
+            
+            items.forEach(item => {
+                const kod = item.getAttribute('data-kod').toLowerCase();
+                const ad = item.getAttribute('data-ad').toLowerCase();
+                const tabela = item.getAttribute('data-tabela').toLowerCase();
+                
+                if (arama === '' || kod.includes(arama) || ad.includes(arama) || tabela.includes(arama)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
                 }
+            });
+        }
+        
+        function musteriSec(element) {
+            document.querySelectorAll('.musteri-item').forEach(item => {
+                item.style.background = '';
+            });
+            element.style.background = '#e3f2fd';
+            
+            window.seciliMusteriId = parseInt(element.getAttribute('data-id'));
+            window.seciliMusteriAd = element.getAttribute('data-ad');
+            
+            const islemlerDiv = document.getElementById('musteriIslemler');
+            
+            islemlerDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📦 ${window.seciliMusteriAd} - Stok İşlemleri</div>
+                    <button class="btn" onclick="musteriStokGoster()" style="margin-bottom: 10px; background: #2196F3;">📊 Stok Durumunu Gör</button>
+                    <button class="btn" onclick="musteriyePaletVer()" style="margin-bottom: 10px; background: #4caf50;">➡️ Müşteriye Palet Ver</button>
+                    <button class="btn" onclick="musteridenPaletAl()" style="background: #ff9800;">⬅️ Müşteriden Palet Al</button>
+                </div>
+            `;
+            islemlerDiv.style.display = 'block';
+        }
+        
+        async function musteriStokGoster() {
+            if (!window.seciliMusteriId) {
+                showToast('Lütfen bir müşteri seçin', 'error');
+                return;
+            }
+            const contentDiv = document.getElementById('content');
+            await showStok(contentDiv, 'MUSTERI', window.seciliMusteriId, `📦 ${window.seciliMusteriAd} Stoğu`);
+        }
+        
+        async function musteriyePaletVer() {
+            if (!window.seciliMusteriId) {
+                showToast('Lütfen bir müşteri seçin', 'error');
+                return;
+            }
+            const paletler = await apiCall('/api/palet_tipleri');
+            if (!paletler?.data) return;
+            
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver</div>
+                    <div class="form-group">
+                        <label>Palet Tipi</label>
+                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group">
+                        <label>Miktar</label>
+                        <input type="number" id="miktar" placeholder="Miktar">
+                    </div>
+                    <button class="btn" onclick="musteriTransfer('DAGITICI_MUSTERI')">Palet Ver</button>
+                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top: 10px; background:#9e9e9e;">Geri Dön</button>
+                </div>
+            `;
+        }
+        
+        async function musteridenPaletAl() {
+            if (!window.seciliMusteriId) {
+                showToast('Lütfen bir müşteri seçin', 'error');
+                return;
+            }
+            const paletler = await apiCall('/api/palet_tipleri');
+            if (!paletler?.data) return;
+            
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (İade)</div>
+                    <div class="form-group">
+                        <label>Palet Tipi</label>
+                        <select id="palet_tipi_id">${paletler.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select>
+                    </div>
+                    <div class="form-group">
+                        <label>Miktar</label>
+                        <input type="number" id="miktar" placeholder="Miktar">
+                    </div>
+                    <button class="btn" onclick="musteriTransfer('MUSTERI_DAGITICI')">Palet Al</button>
+                    <button class="btn btn-secondary" onclick="loadContent('musteriStoklar')" style="margin-top: 10px; background:#9e9e9e;">Geri Dön</button>
+                </div>
+            `;
+        }
+        
+        async function musteriTransfer(hareketTipi) {
+            const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
+            const miktar = document.getElementById('miktar')?.value;
+            
+            if (!palet_tipi_id || !miktar || miktar <= 0) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            const body = {
+                hareket_tipi: hareketTipi,
+                palet_tipi_id: parseInt(palet_tipi_id),
+                miktar: parseInt(miktar),
+                alici_id: window.seciliMusteriId
+            };
+            
+            const result = await apiCall('/api/transfer', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            
+            if (result && result.status === 200 && result.data.success) {
+                showToast(result.data.mesaj);
+                loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok');
             } else {
-                contentDiv.innerHTML = '<div class="card">📭 Müşteri bulunmuyor</div>';
+                showToast(result?.data?.hata || 'İşlem başarısız', 'error');
             }
         }
         
@@ -653,7 +757,7 @@
         }
         
         async function showMusteriyeVer(contentDiv) {
-            const musteriler = await apiCall('/api/dagitici_musterileri');
+            const musteriler = await apiCall('/api/tum_musteriler');
             const paletler = await apiCall('/api/palet_tipleri');
             
             if (!musteriler?.data?.length) {
@@ -682,7 +786,7 @@
         }
         
         async function showMusteridenAl(contentDiv) {
-            const musteriler = await apiCall('/api/dagitici_musterileri');
+            const musteriler = await apiCall('/api/tum_musteriler');
             const paletler = await apiCall('/api/palet_tipleri');
             
             if (!musteriler?.data?.length) {
@@ -729,66 +833,97 @@
             `;
         }
         
-       function showDagiticiEkle(contentDiv) {
-    contentDiv.innerHTML = `
-        <div class="card">
-            <div class="card-title">➕ Yeni Dağıtıcı Ekle</div>
-            <div class="form-group">
-                <label>Kullanıcı Adı</label>
-                <input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı">
-            </div>
-            <div class="form-group">
-                <label>Ad Soyad</label>
-                <input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad">
-            </div>
-            <div class="form-group">
-                <label>Şifre</label>
-                <input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)">
-            </div>
-            <button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button>
-        </div>
-    `;
-}
-
-async function yeniDagiticiEkle() {
-    const kullanici_adi = document.getElementById('yeni_kullanici_adi').value;
-    const ad_soyad = document.getElementById('yeni_ad_soyad').value;
-    const sifre = document.getElementById('yeni_sifre').value;
-    
-    if (!kullanici_adi || !ad_soyad || !sifre) {
-        showToast('Tüm alanları doldurun', 'error');
-        return;
-    }
-    
-    if (sifre.length < 4) {
-        showToast('Şifre en az 4 karakter olmalı', 'error');
-        return;
-    }
-    
-    const result = await apiCall('/api/dagitici_ekle', {
-        method: 'POST',
-        body: JSON.stringify({ kullanici_adi, ad_soyad, sifre })
-    });
-    
-    if (result && result.status === 200 && result.data.success) {
-        showToast(result.data.mesaj);
-        // Başarılı olunca dağıtıcı listesini göster
-        loadContent('kullaniciYonetim');
-    } else {
-        showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
-    }
-}
+        function showDagiticiEkle(contentDiv) {
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">➕ Yeni Dağıtıcı Ekle</div>
+                    <div class="form-group">
+                        <label>Kullanıcı Adı</label>
+                        <input type="text" id="yeni_kullanici_adi" placeholder="Kullanıcı adı">
+                    </div>
+                    <div class="form-group">
+                        <label>Ad Soyad</label>
+                        <input type="text" id="yeni_ad_soyad" placeholder="Ad Soyad">
+                    </div>
+                    <div class="form-group">
+                        <label>Şifre</label>
+                        <input type="password" id="yeni_sifre" placeholder="Şifre (min 4 karakter)">
+                    </div>
+                    <button class="btn" onclick="yeniDagiticiEkle()">Kaydet</button>
+                </div>
+            `;
+        }
+        
+        async function yeniDagiticiEkle() {
+            const kullanici_adi = document.getElementById('yeni_kullanici_adi').value;
+            const ad_soyad = document.getElementById('yeni_ad_soyad').value;
+            const sifre = document.getElementById('yeni_sifre').value;
+            
+            if (!kullanici_adi || !ad_soyad || !sifre) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            if (sifre.length < 4) {
+                showToast('Şifre en az 4 karakter olmalı', 'error');
+                return;
+            }
+            
+            const result = await apiCall('/api/dagitici_ekle', {
+                method: 'POST',
+                body: JSON.stringify({ kullanici_adi, ad_soyad, sifre })
+            });
+            
+            if (result && result.status === 200 && result.data.success) {
+                showToast(result.data.mesaj);
+                loadContent('kullaniciYonetim');
+            } else {
+                showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
+            }
+        }
         
         function showMusteriEkle(contentDiv) {
             contentDiv.innerHTML = `
                 <div class="card">
                     <div class="card-title">👤 Yeni Müşteri Ekle</div>
-                    <div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu"></div>
-                    <div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi"></div>
-                    <div class="form-group"><label>Bağlı Dağıtıcı ID</label><input type="number" id="bagli_dagitici_id"></div>
-                    <button class="btn" onclick="musteriEkle()">Kaydet</button>
+                    <div class="form-group">
+                        <label>Müşteri Kodu</label>
+                        <input type="text" id="musteri_kodu" placeholder="Müşteri kodu (benzersiz)">
+                    </div>
+                    <div class="form-group">
+                        <label>Müşteri Adı</label>
+                        <input type="text" id="musteri_adi" placeholder="Müşteri adı">
+                    </div>
+                    <div class="form-group">
+                        <label>Tabela Adı</label>
+                        <input type="text" id="tabela_adi" placeholder="İşletme/Tablet adı">
+                    </div>
+                    <button class="btn" onclick="yeniMusteriEkle()">Kaydet</button>
                 </div>
             `;
+        }
+        
+        async function yeniMusteriEkle() {
+            const musteri_kodu = document.getElementById('musteri_kodu').value;
+            const musteri_adi = document.getElementById('musteri_adi').value;
+            const tabela_adi = document.getElementById('tabela_adi').value;
+            
+            if (!musteri_kodu || !musteri_adi || !tabela_adi) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            const result = await apiCall('/api/musteri_ekle', {
+                method: 'POST',
+                body: JSON.stringify({ musteri_kodu, musteri_adi, tabela_adi })
+            });
+            
+            if (result && result.status === 200 && result.data.success) {
+                showToast(result.data.mesaj);
+                loadContent('musteriStoklar');
+            } else {
+                showToast(result?.data?.hata || 'Ekleme başarısız', 'error');
+            }
         }
         
         async function showPaletTipleri(contentDiv) {
@@ -804,18 +939,18 @@ async function yeniDagiticiEkle() {
                     <div class="card-title">🏷️ Palet Tipleri Yönetimi</div>
                     <button class="btn" style="margin-bottom: 16px; background: #4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button>
                     <table class="stok-table">
-                        <thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></tr></thead>
+                        <thead><tr><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th> </thead>
                         <tbody>
                             ${paletler.data.map(p => `
                                 <tr>
-                                    <td>${p.id}</td>
-                                    <td>${p.stok_kodu}</td>
-                                    <td>${p.palet_adi}</td>
+                                    <td>${p.id} </td>
+                                    <td>${p.stok_kodu} </td>
+                                    <td>${p.palet_adi} </td>
                                     <td>
                                         <button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button>
                                         <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button>
-                                    </td>
-                                </tr>
+                                     </td>
+                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
@@ -907,7 +1042,7 @@ async function yeniDagiticiEkle() {
                     <div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div>
                     <button class="btn" style="margin-bottom: 16px; background: #4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button>
                     <table class="stok-table">
-                        <thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></tr></thead>
+                        <thead> <th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th> </thead>
                         <tbody>
                             ${kullanicilar.data.map(k => `
                                 <tr>
@@ -1001,7 +1136,7 @@ async function yeniDagiticiEkle() {
         }
         
         async function silKullanici(id) {
-            if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz? Bağlı müşterileri varsa silinemez!')) return;
+            if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
             const result = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' });
             if (result && result.status === 200 && result.data.success) {
                 showToast(result.data.mesaj);
@@ -1011,101 +1146,117 @@ async function yeniDagiticiEkle() {
             }
         }
         
-        let excelMusteriler = [];
-
-function showExcelYukle(contentDiv) {
-    contentDiv.innerHTML = `
-        <div class="card">
-            <div class="card-title">📂 Excel'den Müşteri Yükle</div>
-            <div class="form-group">
-                <label>Excel Dosyası Seçin</label>
-                <input type="file" id="excelFile" accept=".xlsx, .xls">
-            </div>
-            <div class="form-group">
-                <div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;">
-                    <strong>Excel Formatı:</strong><br>
-                    • MÜŞTERİ KODU<br>
-                    • MÜŞTERİ ADI<br>
-                    • TABELA ADI (müşterinin işletme adı)<br>
-                    <br>
-                    <strong>Örnek:</strong><br>
-                    MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>
-                    001 | Selim Kuş | ABC Market<br>
-                    002 | Mehmet Demir | XYZ Ltd
+        function showExcelYukle(contentDiv) {
+            contentDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📂 Excel'den Müşteri Yükle</div>
+                    <div class="form-group">
+                        <label>Excel Dosyası Seçin</label>
+                        <input type="file" id="excelFile" accept=".xlsx, .xls">
+                    </div>
+                    <div class="form-group">
+                        <div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:0.85rem;">
+                            <strong>Excel Formatı:</strong><br>
+                            • MÜŞTERİ KODU<br>
+                            • MÜŞTERİ ADI<br>
+                            • TABELA ADI (müşterinin işletme adı)<br>
+                            <br>
+                            <strong>Örnek:</strong><br>
+                            MÜŞTERİ KODU | MÜŞTERİ ADI | TABELA ADI<br>
+                            001 | Selim Kuş | ABC Market<br>
+                            002 | Mehmet Demir | XYZ Ltd<br>
+                            <br>
+                            <strong>Not:</strong> Aynı müşteri kodu varsa güncellenir, yoksa eklenir.
+                        </div>
+                    </div>
+                    <button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button>
+                    <div id="excelSonuc" style="margin-top:16px;"></div>
                 </div>
-            </div>
-            <button class="btn" onclick="excelYukle()" style="background:#4caf50;">Müşterileri Yükle</button>
-            <div id="excelSonuc" style="margin-top:16px;"></div>
-        </div>
-    `;
-}
-
-async function excelYukle() {
-    const fileInput = document.getElementById('excelFile');
-    const file = fileInput.files[0];
-    if (!file) { showToast('Lütfen bir dosya seçin', 'error'); return; }
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    const sonucDiv = document.getElementById('excelSonuc');
-    sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
-    
-    try {
-        const response = await fetch(`${API_URL}/api/musteri_excel_yukle`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            excelMusteriler = result.musteriler;
-            
-            let html = `<div style="background:#4caf50; color:white; padding:12px; border-radius:8px;">✅ ${result.mesaj}</div>`;
-            html += `<div class="form-group" style="margin-top:16px;">
-                        <label>Bu müşterileri hangi dağıtıcıya bağlamak istiyorsunuz?</label>
-                        <select id="dagiticiSecim">`;
-            for (const d of result.dagiticilar) {
-                html += `<option value="${d.id}">${d.ad_soyad} (${d.kullanici_adi})</option>`;
-            }
-            html += `</select></div>`;
-            html += `<button class="btn" onclick="excelMusterileriKaydet()" style="background:#2196F3;">Seçilen Dağıtıcıya Kaydet</button>`;
-            html += `<div style="margin-top:16px;"><strong>Müşteriler:</strong><br>${result.musteriler.map(m => `• ${m.kodu} - ${m.adi} (${m.tabela})`).join('<br>')}</div>`;
-            
-            sonucDiv.innerHTML = html;
-        } else {
-            sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ ${result.hata}</div>`;
-            showToast(result.hata, 'error');
+            `;
         }
-    } catch (error) {
-        sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ Yükleme hatası: ${error.message}</div>`;
-        showToast('Yükleme hatası', 'error');
-    }
-}
-
-async function excelMusterileriKaydet() {
-    const dagitici_id = document.getElementById('dagiticiSecim').value;
-    
-    const result = await apiCall('/api/musteri_excel_kaydet', {
-        method: 'POST',
-        body: JSON.stringify({
-            dagitici_id: parseInt(dagitici_id),
-            musteriler: excelMusteriler
-        })
-    });
-    
-    if (result && result.status === 200 && result.data.success) {
-        showToast(result.data.mesaj);
-        loadContent('musteriStoklar');
-    } else {
-        showToast(result?.data?.hata || 'Kaydetme başarısız', 'error');
-    }
-}
+        
+        async function excelYukle() {
+            const fileInput = document.getElementById('excelFile');
+            const file = fileInput.files[0];
+            if (!file) { showToast('Lütfen bir dosya seçin', 'error'); return; }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            const sonucDiv = document.getElementById('excelSonuc');
+            sonucDiv.innerHTML = '<div class="loading">Yükleniyor...</div>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/musteri_excel_yukle`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    let html = `<div style="background:#4caf50; color:white; padding:12px; border-radius:8px;">✅ ${result.mesaj}</div>`;
+                    if (result.eklenen > 0) {
+                        html += `<div style="margin-top:8px;">📝 Yeni eklenen: ${result.eklenen} müşteri</div>`;
+                    }
+                    if (result.guncellenen > 0) {
+                        html += `<div style="margin-top:8px;">🔄 Güncellenen: ${result.guncellenen} müşteri</div>`;
+                    }
+                    if (result.hatalar && result.hatalar.length > 0) {
+                        html += `<div style="margin-top:12px; background:#ffebee; padding:12px; border-radius:8px;"><strong>⚠️ Hatalar:</strong><br>${result.hatalar.map(h => `• ${h}`).join('<br>')}</div>`;
+                    }
+                    sonucDiv.innerHTML = html;
+                    showToast(result.mesaj);
+                } else {
+                    sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ ${result.hata}</div>`;
+                    showToast(result.hata, 'error');
+                }
+            } catch (error) {
+                sonucDiv.innerHTML = `<div style="background:#f44336; color:white; padding:12px; border-radius:8px;">❌ Yükleme hatası: ${error.message}</div>`;
+                showToast('Yükleme hatası', 'error');
+            }
+        }
+        
+        async function showHareketler(contentDiv) {
+            const result = await apiCall('/api/hareketler');
+            if (result && result.data && result.data.length > 0) {
+                contentDiv.innerHTML = `<div class="card"><div class="card-title">📋 Hareket Geçmişi</div>${result.data.map(h => `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">${h.yapan}</div></div>`).join('')}</div>`;
+            } else {
+                contentDiv.innerHTML = '<div class="card">📭 Henüz hareket yok</div>';
+            }
+        }
+        
+        async function transfer(hareketTipi) {
+            const alici_id = document.getElementById('alici_id')?.value;
+            const palet_tipi_id = document.getElementById('palet_tipi_id')?.value;
+            const miktar = document.getElementById('miktar')?.value;
+            
+            if (!palet_tipi_id || !miktar || miktar <= 0) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            const body = { hareket_tipi: hareketTipi, palet_tipi_id: parseInt(palet_tipi_id), miktar: parseInt(miktar) };
+            if (alici_id) body.alici_id = parseInt(alici_id);
+            
+            const result = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+            
+            if (result && result.status === 200 && result.data.success) {
+                showToast(result.data.mesaj);
+                loadContent(currentUser.tip === 'DEPOCU' ? 'depoStok' : 'kendiStok');
+            } else {
+                showToast(result?.data?.hata || 'Transfer başarısız', 'error');
+            }
+        }
         
         const savedToken = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user');
-        if (savedToken && savedUser) { token = savedToken; currentUser = JSON.parse(savedUser); renderMain(); }
-        else { renderLogin(); }
+        if (savedToken && savedUser) {
+            token = savedToken;
+            currentUser = JSON.parse(savedUser);
+            renderMain();
+        } else {
+            renderLogin();
+        }
     </script>
 </body>
 </html>
