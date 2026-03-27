@@ -14,11 +14,17 @@
         .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; }
         .container { padding: 16px; }
         
-        .menu-group { margin-bottom: 24px; }
-        .menu-group-title { font-size: 0.9rem; font-weight: 600; color: #1976D2; margin-bottom: 8px; padding-left: 4px; border-left: 3px solid #2196F3; }
-        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .menu-btn { background: white; border: none; padding: 10px 8px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.75rem; font-weight: 500; color: #2196F3; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
-        .menu-btn:active { transform: scale(0.96); background: #f0f0f0; }
+        /* Accordion Menu */
+        .accordion-item { margin-bottom: 8px; border-radius: 12px; overflow: hidden; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .accordion-header { background: white; padding: 14px 16px; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: #1976D2; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #2196F3; transition: background 0.2s; }
+        .accordion-header:hover { background: #f5f5f5; }
+        .accordion-header .arrow { font-size: 1.2rem; transition: transform 0.3s; }
+        .accordion-header.open .arrow { transform: rotate(180deg); }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background: #fafafa; }
+        .accordion-content.open { max-height: 500px; transition: max-height 0.3s ease-in; }
+        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; }
+        .menu-btn { background: white; border: none; padding: 10px 8px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-size: 0.75rem; font-weight: 500; color: #2196F3; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+        .menu-btn:active { transform: scale(0.96); background: #e3f2fd; }
         .menu-btn .icon { font-size: 1.3rem; }
         
         .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -128,18 +134,15 @@
             renderLogin();
         }
 
+        function toggleAccordion(element) {
+            element.classList.toggle('open');
+            const content = element.nextElementSibling;
+            content.classList.toggle('open');
+        }
+
         function renderMain() {
             if (!currentUser) return;
             const isDepocu = currentUser.tip === 'DEPOCU';
-            
-            document.getElementById('app').innerHTML = `
-                <div class="header">
-                    <h1>🏭 Palet Takip</h1>
-                    <div class="user-info"><span>👤 ${currentUser.ad_soyad} (${currentUser.tip === 'DEPOCU' ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div>
-                </div>
-                <div class="container" id="menuContainer"></div>
-                <div id="content"></div>
-            `;
             
             let menuGroups = [];
             
@@ -189,20 +192,38 @@
                 ];
             }
             
+            document.getElementById('app').innerHTML = `
+                <div class="header">
+                    <h1>🏭 Palet Takip</h1>
+                    <div class="user-info"><span>👤 ${currentUser.ad_soyad} (${currentUser.tip === 'DEPOCU' ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div>
+                </div>
+                <div class="container" id="menuContainer"></div>
+                <div id="content"></div>
+            `;
+            
             const menuContainer = document.getElementById('menuContainer');
-            menuContainer.innerHTML = menuGroups.map(group => `
-                <div class="menu-group">
-                    <div class="menu-group-title">${group.title}</div>
-                    <div class="menu-grid">
-                        ${group.items.map(item => `
-                            <button class="menu-btn" onclick="loadContent('${item.action}')">
-                                <span class="icon">${item.icon}</span>
-                                <span>${item.text}</span>
-                            </button>
-                        `).join('')}
+            menuContainer.innerHTML = menuGroups.map((group, idx) => `
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>${group.title}</span>
+                        <span class="arrow">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="menu-grid">
+                            ${group.items.map(item => `
+                                <button class="menu-btn" onclick="loadContent('${item.action}')">
+                                    <span class="icon">${item.icon}</span>
+                                    <span>${item.text}</span>
+                                </button>
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
             `).join('');
+            
+            // İlk grubu açık göster
+            const firstHeader = document.querySelector('.accordion-header');
+            if (firstHeader) toggleAccordion(firstHeader);
             
             loadContent(isDepocu ? 'depoStok' : 'kendiStok');
         }
@@ -235,7 +256,7 @@
         async function showStok(contentDiv, tip, id, baslik, append = false) {
             const result = await apiCall(`/api/stok?tip=${tip}&id=${id}`);
             if (result && result.data) {
-                const html = `<div class="card"><div class="card-title">${baslik}</div><table class="stok-table"><thead><tr><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></tr></thead><tbody>${result.data.map(s => `<tr><td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td></tr>`).join('')}</tbody></table></div>`;
+                const html = `<div class="card"><div class="card-title">${baslik}</div><table class="stok-table"><thead> <th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th> </thead><tbody>${result.data.map(s => `  <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody> </table></div>`;
                 if (append) contentDiv.innerHTML += html;
                 else contentDiv.innerHTML = html;
             }
@@ -442,7 +463,7 @@
         async function showPaletTipleri(contentDiv) {
             const paletler = await apiCall('/api/palet_tipleri');
             if (!paletler?.data) { contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead> <th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th> </thead><tbody>${paletler.data.map(p => `<tr><td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div><div id="paletModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu" placeholder="Örn: P004"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi" placeholder="Örn: Metal Palet"></div><input type="hidden" id="palet_id"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead> <th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th> </thead><tbody>${paletler.data.map(p => `   <td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id}, '${p.stok_kodu}', '${p.palet_adi}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td> `).join('')}</tbody>   <button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div><div id="paletModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu" placeholder="Örn: P004"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi" placeholder="Örn: Metal Palet"></div><input type="hidden" id="palet_id"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`;
         }
 
         function showYeniPaletTipiModal() { document.getElementById('modalTitle').innerText = 'Yeni Palet Tipi'; document.getElementById('stok_kodu').value = ''; document.getElementById('palet_adi').value = ''; document.getElementById('palet_id').value = ''; document.getElementById('paletModal').style.display = 'flex'; }
@@ -466,7 +487,7 @@
         async function showKullaniciYonetim(contentDiv) {
             const kullanicilar = await apiCall('/api/kullanici_listesi');
             if (!kullanicilar?.data) { contentDiv.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
-            contentDiv.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead> <th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th> </thead><tbody>${kullanicilar.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table><button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div><div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre (boş bırak değişmesin)</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`;
+            contentDiv.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar (Kullanıcılar)</div><button class="btn" style="margin-bottom:16px; background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead> <th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th> </thead><tbody>${kullanicilar.data.map(k => `   <td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id}, '${k.kullanici_adi}', '${k.ad_soyad}')" style="background:#ff9800; margin-right:8px;">✏️</button><button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td> `).join('')}</tbody>   <button class="btn btn-secondary" onclick="loadContent('depoStok')" style="margin-top:16px;">🔙 Geri Dön</button></div><div id="kullaniciModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;"><div style="background:white; border-radius:16px; padding:24px; width:90%; max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre (boş bırak değişmesin)</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex; gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`;
         }
 
         function showYeniKullaniciModal() { document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle'; document.getElementById('kullanici_adi_duzenle').value = ''; document.getElementById('ad_soyad_duzenle').value = ''; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = ''; document.getElementById('kullaniciModal').style.display = 'flex'; }
@@ -539,14 +560,14 @@
                 let html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>';
                 if (data.en_cok_transfer_yapan && data.en_cok_transfer_yapan.length > 0) {
                     html += '<table class="stok-table"><thead> <th>Dağıtıcı</th><th>Transfer Sayısı</th> </thead><tbody>';
-                    for (const d of data.en_cok_transfer_yapan) html += `<tr><td>${d.ad_soyad}</td><td>${d.transfer_sayisi}</td></tr>`;
-                    html += '</tbody></table>';
+                    for (const d of data.en_cok_transfer_yapan) html += ` <td>${d.ad_soyad}</td><td>${d.transfer_sayisi}</td> `;
+                    html += '</tbody> </table>';
                 } else html += '<p>Henüz transfer yok</p>';
                 html += '<h3 style="margin-top:16px;">📦 En Çok Kullanılan Palet Tipleri</h3>';
                 if (data.en_cok_kullanilan_palet && data.en_cok_kullanilan_palet.length > 0) {
                     html += '<table class="stok-table"><thead> <th>Palet Tipi</th><th>Kullanım Sayısı</th><th>Toplam Miktar</th> </thead><tbody>';
-                    for (const p of data.en_cok_kullanilan_palet) html += `<tr><td>${p.palet_adi}</td><td>${p.kullanim_sayisi}</td><td>${p.toplam_miktar}</td></tr>`;
-                    html += '</tbody></table>';
+                    for (const p of data.en_cok_kullanilan_palet) html += ` <td>${p.palet_adi}</td><td>${p.kullanim_sayisi}</td><td>${p.toplam_miktar}</td> `;
+                    html += '</tbody> </table>';
                 } else html += '<p>Henüz hareket yok</p>';
                 document.getElementById('istatistikler').innerHTML = html;
             }
