@@ -316,6 +316,25 @@ def get_kullanici_listesi(current_user):
     return jsonify(kullanicilar)
 
 
+@app.route('/api/dagitici_listesi', methods=['GET'])
+@token_required
+def get_dagitici_listesi(current_user):
+    """Tüm dağıtıcıları listele (depocu ve dağıtıcı için)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, kullanici_adi, ad_soyad FROM kullanicilar
+        WHERE tip = 'DAGITICI'
+        ORDER BY ad_soyad
+    ''')
+    sonuc = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    dagiticilar = [{'id': d[0], 'kullanici_adi': d[1], 'ad_soyad': d[2]} for d in sonuc]
+    return jsonify(dagiticilar)
+
+
 @app.route('/api/kullanici_duzenle', methods=['PUT'])
 @token_required
 def kullanici_duzenle(current_user):
@@ -768,9 +787,12 @@ def get_stok(current_user):
     return jsonify(stoklar)
 
 
+# ==================== TRANSFER İŞLEMİ (DÜZELTİLMİŞ) ====================
+
 @app.route('/api/transfer', methods=['POST'])
 @token_required
 def transfer_yap(current_user):
+    """Transfer işlemi - DÜZELTİLMİŞ"""
     data = request.get_json()
     hareket_tipi = data.get('hareket_tipi')
     palet_tipi_id = data.get('palet_tipi_id')
@@ -789,33 +811,38 @@ def transfer_yap(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT stok_kodu, palet_adi FROM palet_tipleri WHERE id = %s", (palet_tipi_id,))
+    cursor.execute("SELECT id, stok_kodu, palet_adi FROM palet_tipleri WHERE id = %s", (palet_tipi_id,))
     palet = cursor.fetchone()
     if not palet:
         cursor.close()
         conn.close()
         return jsonify({'hata': 'Geçersiz palet tipi'}), 400
     
+    # Transfer mantığı
     if kullanici_tip == 'DEPOCU':
         if hareket_tipi == 'DEPO_DAGITICI':
+            # Depo -> Dağıtıcı transferi
             gonderen_tip = SAHIP_TIP_DEPO
             gonderen_id = 0
             alan_tip = SAHIP_TIP_DAGITICI
             alan_id = alici_id
             
-            cursor.execute("SELECT id FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT id, ad_soyad FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+            dagitici = cursor.fetchone()
+            if not dagitici:
                 cursor.close()
                 conn.close()
                 return jsonify({'hata': 'Geçersiz dağıtıcı ID'}), 400
+            dagitici_adi = dagitici[1]
                 
         elif hareket_tipi == 'DAGITICI_DEPO':
+            # Dağıtıcı -> Depo iade (depocu yapar)
             gonderen_tip = SAHIP_TIP_DAGITICI
             gonderen_id = alici_id
             alan_tip = SAHIP_TIP_DEPO
             alan_id = 0
             
-            cursor.execute("SELECT id FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+            cursor.execute("SELECT id, ad_soyad FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
             if not cursor.fetchone():
                 cursor.close()
                 conn.close()
@@ -827,18 +854,20 @@ def transfer_yap(current_user):
             
     elif kullanici_tip == 'DAGITICI':
         if hareket_tipi == 'DAGITICI_MUSTERI':
+            # Dağıtıcı -> Müşteri
             gonderen_tip = SAHIP_TIP_DAGITICI
             gonderen_id = kullanici_id
             alan_tip = SAHIP_TIP_MUSTERI
             alan_id = alici_id
             
-            cursor.execute('SELECT id FROM musteriler WHERE id = %s', (alici_id,))
+            cursor.execute('SELECT id, musteri_adi FROM musteriler WHERE id = %s', (alici_id,))
             if not cursor.fetchone():
                 cursor.close()
                 conn.close()
                 return jsonify({'hata': 'Geçersiz müşteri ID'}), 400
                 
         elif hareket_tipi == 'MUSTERI_DAGITICI':
+            # Müşteri -> Dağıtıcı iade
             gonderen_tip = SAHIP_TIP_MUSTERI
             gonderen_id = alici_id
             alan_tip = SAHIP_TIP_DAGITICI
@@ -849,12 +878,6 @@ def transfer_yap(current_user):
                 cursor.close()
                 conn.close()
                 return jsonify({'hata': 'Geçersiz müşteri ID'}), 400
-                
-        elif hareket_tipi == 'DAGITICI_DEPO':
-            gonderen_tip = SAHIP_TIP_DAGITICI
-            gonderen_id = kullanici_id
-            alan_tip = SAHIP_TIP_DEPO
-            alan_id = 0
         else:
             cursor.close()
             conn.close()
@@ -864,53 +887,47 @@ def transfer_yap(current_user):
         conn.close()
         return jsonify({'hata': 'Yetkisiz kullanıcı'}), 403
     
-    mevcut = stok_miktari_getir(gonderen_tip, gonderen_id, palet_tipi_id)
-    if mevcut < miktar:
+    # Stok kontrolü ve güncelleme
+    mevcut_gonderen = stok_miktari_getir(gonderen_tip, gonderen_id, palet_tipi_id)
+    if mevcut_gonderen < miktar:
         cursor.close()
         conn.close()
-        return jsonify({'hata': f'Yetersiz stok! Mevcut: {mevcut}'}), 400
+        return jsonify({'hata': f'Yetersiz stok! Mevcut: {mevcut_gonderen}'}), 400
     
+    # Gönderenden stok düş
     basarili, hata = stok_guncelle(gonderen_tip, gonderen_id, palet_tipi_id, -miktar)
     if not basarili:
         cursor.close()
         conn.close()
         return jsonify({'hata': hata}), 400
     
+    # Alıcıya stok ekle
     basarili, hata = stok_guncelle(alan_tip, alan_id, palet_tipi_id, +miktar)
     if not basarili:
+        # Hata olursa geri al
         stok_guncelle(gonderen_tip, gonderen_id, palet_tipi_id, +miktar)
         cursor.close()
         conn.close()
         return jsonify({'hata': hata}), 400
     
-    aciklama = f"{palet[1]} - {miktar} adet transfer"
+    # Hareket açıklaması oluştur
+    if hareket_tipi == 'DEPO_DAGITICI':
+        aciklama = f"{palet[2]} - {miktar} adet {dagitici_adi} dağıtıcısına transfer edildi"
+    elif hareket_tipi == 'DAGITICI_DEPO':
+        aciklama = f"{palet[2]} - {miktar} adet dağıtıcıdan depoya iade alındı"
+    elif hareket_tipi == 'DAGITICI_MUSTERI':
+        aciklama = f"{palet[2]} - {miktar} adet müşteriye verildi"
+    elif hareket_tipi == 'MUSTERI_DAGITICI':
+        aciklama = f"{palet[2]} - {miktar} adet müşteriden iade alındı"
+    else:
+        aciklama = f"{palet[2]} - {miktar} adet transfer"
+    
     hareket_kaydet(kullanici_id, hareket_tipi, gonderen_tip, gonderen_id,
                    alan_tip, alan_id, palet_tipi_id, miktar, aciklama)
     
     cursor.close()
     conn.close()
-    return jsonify({'success': True, 'mesaj': 'Transfer başarılı'})
-
-
-@app.route('/api/dagitici_listesi', methods=['GET'])
-@token_required
-def get_dagitici_listesi(current_user):
-    if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT id, kullanici_adi, ad_soyad FROM kullanicilar
-        WHERE tip = 'DAGITICI'
-        ORDER BY ad_soyad
-    ''')
-    sonuc = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    
-    dagiticilar = [{'id': d[0], 'kullanici_adi': d[1], 'ad_soyad': d[2]} for d in sonuc]
-    return jsonify(dagiticilar)
+    return jsonify({'success': True, 'mesaj': f'Transfer başarılı! {miktar} adet {palet[2]} transfer edildi.'})
 
 
 # ==================== HAREKETLER ====================
@@ -967,6 +984,79 @@ def get_hareketler(current_user):
             'palet_adi': h[5],
             'miktar': h[6],
             'aciklama': h[7]
+        })
+    
+    return jsonify(hareketler)
+
+
+@app.route('/api/hareketler_filtreli', methods=['POST'])
+@token_required
+def get_hareketler_filtreli(current_user):
+    """Filtreli hareket geçmişi"""
+    data = request.get_json()
+    dagitici_id = data.get('dagitici_id')
+    palet_tipi_id = data.get('palet_tipi_id')
+    baslangic = data.get('baslangic_tarihi')
+    bitis = data.get('bitis_tarihi')
+    limit = data.get('limit', 100)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi,
+               pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama,
+               CASE 
+                   WHEN h.gonderen_tip = 'DAGITICI' THEN (SELECT ad_soyad FROM kullanicilar WHERE id = h.gonderen_id)
+                   WHEN h.alan_tip = 'DAGITICI' THEN (SELECT ad_soyad FROM kullanicilar WHERE id = h.alan_id)
+                   ELSE NULL
+               END as ilgili_dagitici
+        FROM hareketler h
+        JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+        JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+        WHERE 1=1
+    '''
+    params = []
+    
+    if dagitici_id:
+        query += ''' AND (h.gonderen_id = %s OR h.alan_id = %s) '''
+        params.extend([dagitici_id, dagitici_id])
+    
+    if palet_tipi_id:
+        query += ''' AND h.palet_tipi_id = %s '''
+        params.append(palet_tipi_id)
+    
+    if baslangic and bitis:
+        query += ''' AND DATE(h.tarih) BETWEEN %s AND %s '''
+        params.extend([baslangic, bitis])
+    
+    query += ''' ORDER BY h.tarih DESC LIMIT %s '''
+    params.append(limit)
+    
+    cursor.execute(query, params)
+    sonuc = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    hareketler = []
+    for h in sonuc:
+        tip_text = {
+            'DEPO_DAGITICI': 'Depo→Dağıtıcı',
+            'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri',
+            'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı',
+            'DAGITICI_DEPO': 'Dağıtıcı→Depo',
+            'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
+        }.get(h[3], h[3])
+        
+        hareketler.append({
+            'tarih': h[0],
+            'yapan': f"{h[2]} ({h[1]})",
+            'islem_tipi': tip_text,
+            'stok_kodu': h[4],
+            'palet_adi': h[5],
+            'miktar': h[6],
+            'aciklama': h[7],
+            'ilgili_dagitici': h[8] or '-'
         })
     
     return jsonify(hareketler)
@@ -1106,7 +1196,6 @@ def rapor_istatistikler(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # En çok transfer yapan dağıtıcılar
     cursor.execute('''
         SELECT u.kullanici_adi, u.ad_soyad, COUNT(*) as transfer_sayisi
         FROM hareketler h
@@ -1118,7 +1207,6 @@ def rapor_istatistikler(current_user):
     ''')
     en_cok_transfer = [{'kullanici_adi': r[0], 'ad_soyad': r[1], 'transfer_sayisi': r[2]} for r in cursor.fetchall()]
     
-    # En çok kullanılan palet tipi
     cursor.execute('''
         SELECT pt.stok_kodu, pt.palet_adi, COUNT(*) as kullanim_sayisi, SUM(h.miktar) as toplam_miktar
         FROM hareketler h
@@ -1421,11 +1509,9 @@ def stok_onar(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Tüm dağıtıcıları al
     cursor.execute('SELECT id FROM kullanicilar WHERE tip = %s', ('DAGITICI',))
     dagiticilar = cursor.fetchall()
     
-    # Tüm palet tiplerini al
     cursor.execute('SELECT id FROM palet_tipleri')
     paletler = cursor.fetchall()
     
