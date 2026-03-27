@@ -15,6 +15,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
 import zipfile
 import csv
 
@@ -72,6 +73,7 @@ def veritabani_olustur():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Kullanıcılar tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS kullanicilar (
             id SERIAL PRIMARY KEY,
@@ -82,6 +84,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Müşteriler tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS musteriler (
             id SERIAL PRIMARY KEY,
@@ -91,6 +94,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Palet tipleri tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS palet_tipleri (
             id SERIAL PRIMARY KEY,
@@ -99,6 +103,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Stoklar tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stoklar (
             id SERIAL PRIMARY KEY,
@@ -111,6 +116,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Hareketler tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS hareketler (
             id SERIAL PRIMARY KEY,
@@ -130,6 +136,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Makbuzlar tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS makbuzlar (
             id SERIAL PRIMARY KEY,
@@ -150,6 +157,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Makbuz detayları tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS makbuz_detaylari (
             id SERIAL PRIMARY KEY,
@@ -163,6 +171,7 @@ def veritabani_olustur():
         )
     ''')
     
+    # Ayarlar tablosu (yedekleme için)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ayarlar (
             key TEXT PRIMARY KEY,
@@ -172,6 +181,7 @@ def veritabani_olustur():
     
     conn.commit()
     
+    # Palet tiplerini ekle
     for stok_kodu, palet_adi in PALET_TIPLERI:
         cursor.execute('''
             INSERT INTO palet_tipleri (stok_kodu, palet_adi)
@@ -179,6 +189,7 @@ def veritabani_olustur():
             WHERE NOT EXISTS (SELECT 1 FROM palet_tipleri WHERE stok_kodu = %s)
         ''', (stok_kodu, palet_adi, stok_kodu))
     
+    # Varsayılan depocu
     cursor.execute('''
         INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad)
         SELECT %s, %s, %s, %s
@@ -187,6 +198,7 @@ def veritabani_olustur():
     
     conn.commit()
     
+    # Depo stoklarını oluştur
     cursor.execute('SELECT id FROM palet_tipleri')
     palet_ids = cursor.fetchall()
     for palet in palet_ids:
@@ -267,9 +279,13 @@ def hareket_kaydet(yapan_kullanici_id, hareket_tipi, gonderen_tip, gonderen_id,
     conn.close()
 
 
+# ==================== MAKBUZ NUMARASI ====================
+
 def makbuz_no_olustur():
+    """Yeni makbuz numarası oluştur (PLT00001 formatında)"""
     conn = get_db_connection()
     cursor = conn.cursor()
+    
     try:
         cursor.execute("SELECT MAX(CAST(SUBSTRING(makbuz_no, 4) AS INTEGER)) FROM makbuzlar")
         son_makbuz = cursor.fetchone()[0]
@@ -283,16 +299,19 @@ def makbuz_no_olustur():
     
     cursor.close()
     conn.close()
+    
     return f"PLT{str(yeni_no).zfill(5)}"
 
 
 def makbuz_kaydet(transfer_data):
+    """Transfer işlemi için makbuz oluştur"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
     makbuz_no = makbuz_no_olustur()
     tarih = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     
+    # Makbuzu kaydet
     cursor.execute('''
         INSERT INTO makbuzlar (
             makbuz_no, tarih, islem_tipi,
@@ -312,6 +331,7 @@ def makbuz_kaydet(transfer_data):
     
     makbuz_id = cursor.fetchone()[0]
     
+    # Makbuz detaylarını kaydet
     for detay in transfer_data['detaylar']:
         cursor.execute('''
             INSERT INTO makbuz_detaylari (
@@ -325,32 +345,38 @@ def makbuz_kaydet(transfer_data):
     conn.commit()
     cursor.close()
     conn.close()
+    
     return makbuz_no
 
 
+# Token doğrulama decorator'ı
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.headers.get('Authorization')
         if not token:
             return jsonify({'hata': 'Token gerekli'}), 401
+        
         try:
             token = token.replace('Bearer ', '')
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             current_user = data
         except:
             return jsonify({'hata': 'Geçersiz token'}), 401
+        
         return f(current_user, *args, **kwargs)
     return decorated
 
 
 # ==================== ANA SAYFA ====================
+
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
 
 
 # ==================== KULLANICI İŞLEMLERİ ====================
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -414,6 +440,7 @@ def get_kullanici_listesi(current_user):
 @app.route('/api/dagitici_listesi', methods=['GET'])
 @token_required
 def get_dagitici_listesi(current_user):
+    """Tüm dağıtıcıları listele (depocu ve dağıtıcı için)"""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -469,7 +496,9 @@ def kullanici_duzenle(current_user):
         conn.commit()
         cursor.close()
         conn.close()
+        
         return jsonify({'success': True, 'mesaj': 'Kullanıcı güncellendi'})
+        
     except Exception as e:
         cursor.close()
         conn.close()
@@ -483,6 +512,7 @@ def kullanici_sil(current_user):
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
     kullanici_id = request.args.get('id', type=int)
+    
     if not kullanici_id:
         return jsonify({'hata': 'ID gerekli'}), 400
     
@@ -501,6 +531,7 @@ def kullanici_sil(current_user):
     conn.commit()
     cursor.close()
     conn.close()
+    
     return jsonify({'success': True, 'mesaj': 'Kullanıcı silindi'})
 
 
@@ -517,6 +548,7 @@ def dagitici_ekle(current_user):
     
     if not kullanici_adi or not ad_soyad or not sifre:
         return jsonify({'hata': 'Tüm alanlar gerekli'}), 400
+    
     if len(sifre) < 4:
         return jsonify({'hata': 'Şifre en az 4 karakter olmalı'}), 400
     
@@ -529,6 +561,7 @@ def dagitici_ekle(current_user):
             VALUES (%s, %s, %s, %s)
             RETURNING id
         ''', (kullanici_adi, hash_sifre(sifre), 'DAGITICI', ad_soyad))
+        
         dagitici_id = cursor.fetchone()[0]
         
         cursor.execute("SELECT id FROM palet_tipleri")
@@ -547,7 +580,9 @@ def dagitici_ekle(current_user):
         conn.commit()
         cursor.close()
         conn.close()
+        
         return jsonify({'success': True, 'id': dagitici_id, 'mesaj': 'Dağıtıcı eklendi'})
+        
     except Exception as e:
         cursor.close()
         conn.close()
@@ -555,6 +590,7 @@ def dagitici_ekle(current_user):
 
 
 # ==================== MÜŞTERİ İŞLEMLERİ ====================
+
 @app.route('/api/musteri_ekle', methods=['POST'])
 @token_required
 def musteri_ekle(current_user):
@@ -578,6 +614,7 @@ def musteri_ekle(current_user):
             VALUES (%s, %s, %s)
             RETURNING id
         ''', (musteri_kodu, musteri_adi, tabela_adi))
+        
         musteri_id = cursor.fetchone()[0]
         
         cursor.execute("SELECT id FROM palet_tipleri")
@@ -596,7 +633,9 @@ def musteri_ekle(current_user):
         conn.commit()
         cursor.close()
         conn.close()
+        
         return jsonify({'success': True, 'id': musteri_id, 'mesaj': 'Müşteri eklendi'})
+        
     except Exception as e:
         cursor.close()
         conn.close()
@@ -627,6 +666,7 @@ def musteri_sil(current_user):
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
     musteri_id = request.args.get('id', type=int)
+    
     if not musteri_id:
         return jsonify({'hata': 'ID gerekli'}), 400
     
@@ -654,10 +694,12 @@ def musteri_sil(current_user):
     conn.commit()
     cursor.close()
     conn.close()
+    
     return jsonify({'success': True, 'mesaj': 'Müşteri silindi'})
 
 
 # ==================== PALET TİPLERİ ====================
+
 @app.route('/api/palet_tipleri', methods=['GET'])
 @token_required
 def get_palet_tipleri(current_user):
@@ -694,8 +736,10 @@ def palet_tipi_ekle(current_user):
             VALUES (%s, %s)
             RETURNING id
         ''', (stok_kodu, palet_adi))
+        
         palet_tipi_id = cursor.fetchone()[0]
         
+        # Tüm stok sahipleri için bu palet tipini ekle
         cursor.execute('''
             INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
             SELECT %s, %s, %s, 0
@@ -732,7 +776,9 @@ def palet_tipi_ekle(current_user):
         conn.commit()
         cursor.close()
         conn.close()
+        
         return jsonify({'success': True, 'id': palet_tipi_id, 'mesaj': 'Palet tipi eklendi'})
+        
     except Exception as e:
         cursor.close()
         conn.close()
@@ -762,14 +808,18 @@ def palet_tipi_duzenle(current_user):
             SET stok_kodu = %s, palet_adi = %s
             WHERE id = %s
         ''', (stok_kodu, palet_adi, palet_tipi_id))
+        
         if cursor.rowcount == 0:
             cursor.close()
             conn.close()
             return jsonify({'hata': 'Palet tipi bulunamadı'}), 404
+        
         conn.commit()
         cursor.close()
         conn.close()
+        
         return jsonify({'success': True, 'mesaj': 'Palet tipi güncellendi'})
+        
     except Exception as e:
         cursor.close()
         conn.close()
@@ -783,6 +833,7 @@ def palet_tipi_sil(current_user):
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
     palet_tipi_id = request.args.get('id', type=int)
+    
     if not palet_tipi_id:
         return jsonify({'hata': 'ID gerekli'}), 400
     
@@ -803,14 +854,18 @@ def palet_tipi_sil(current_user):
     try:
         cursor.execute('DELETE FROM stoklar WHERE palet_tipi_id = %s', (palet_tipi_id,))
         cursor.execute('DELETE FROM palet_tipleri WHERE id = %s', (palet_tipi_id,))
+        
         if cursor.rowcount == 0:
             cursor.close()
             conn.close()
             return jsonify({'hata': 'Palet tipi bulunamadı'}), 404
+        
         conn.commit()
         cursor.close()
         conn.close()
+        
         return jsonify({'success': True, 'mesaj': 'Palet tipi silindi'})
+        
     except Exception as e:
         cursor.close()
         conn.close()
@@ -818,6 +873,7 @@ def palet_tipi_sil(current_user):
 
 
 # ==================== STOK İŞLEMLERİ ====================
+
 @app.route('/api/stok', methods=['GET'])
 @token_required
 def get_stok(current_user):
@@ -848,13 +904,16 @@ def get_stok(current_user):
             'palet_adi': p[2],
             'miktar': p[3] if p[3] else 0
         })
+    
     return jsonify(stoklar)
 
 
-# ==================== TRANSFER İŞLEMİ (MAKBUZLU) ====================
+# ==================== TRANSFER İŞLEMİ (MAKBUZLU - DÜZELTİLMİŞ) ====================
+
 @app.route('/api/transfer', methods=['POST'])
 @token_required
 def transfer_yap(current_user):
+    """Transfer işlemi - MAKBUZLU ve DÜZELTİLMİŞ"""
     data = request.get_json()
     hareket_tipi = data.get('hareket_tipi')
     palet_tipi_id = data.get('palet_tipi_id')
@@ -863,6 +922,7 @@ def transfer_yap(current_user):
     
     if not hareket_tipi or not palet_tipi_id or not miktar:
         return jsonify({'hata': 'Eksik parametreler'}), 400
+    
     if miktar <= 0:
         return jsonify({'hata': 'Miktar pozitif olmalı'}), 400
     
@@ -881,6 +941,7 @@ def transfer_yap(current_user):
         conn.close()
         return jsonify({'hata': 'Geçersiz palet tipi'}), 400
     
+    # Transfer mantığı ve ad bilgilerini topla
     transfer_data = {
         'islem_tipi': hareket_tipi,
         'yapan_id': kullanici_id,
@@ -891,6 +952,7 @@ def transfer_yap(current_user):
     
     if kullanici_tip == 'DEPOCU':
         if hareket_tipi == 'DEPO_DAGITICI':
+            # Depo -> Dağıtıcı
             gonderen_tip = SAHIP_TIP_DEPO
             gonderen_id = 0
             gonderen_adi = "DEPO"
@@ -907,6 +969,7 @@ def transfer_yap(current_user):
             aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
                 
         elif hareket_tipi == 'DAGITICI_DEPO':
+            # Dağıtıcı -> Depo iade (depocu yapar)
             gonderen_tip = SAHIP_TIP_DAGITICI
             gonderen_id = alici_id
             alan_tip = SAHIP_TIP_DEPO
@@ -928,6 +991,7 @@ def transfer_yap(current_user):
             
     elif kullanici_tip == 'DAGITICI':
         if hareket_tipi == 'DAGITICI_MUSTERI':
+            # Dağıtıcı -> Müşteri (ID OTOMATİK GELİR)
             gonderen_tip = SAHIP_TIP_DAGITICI
             gonderen_id = kullanici_id
             gonderen_adi = f"{kullanici_adi} ({kullanici_kadi})"
@@ -944,6 +1008,7 @@ def transfer_yap(current_user):
             aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisine verildi"
                 
         elif hareket_tipi == 'MUSTERI_DAGITICI':
+            # Müşteri -> Dağıtıcı iade
             gonderen_tip = SAHIP_TIP_MUSTERI
             gonderen_id = alici_id
             alan_tip = SAHIP_TIP_DAGITICI
@@ -982,6 +1047,7 @@ def transfer_yap(current_user):
         'miktar': miktar
     })
     
+    # Stok kontrolü ve güncelleme
     mevcut_gonderen = stok_miktari_getir(gonderen_tip, gonderen_id, palet_tipi_id)
     if mevcut_gonderen < miktar:
         cursor.close()
@@ -1001,7 +1067,10 @@ def transfer_yap(current_user):
         conn.close()
         return jsonify({'hata': hata}), 400
     
+    # MAKBUZ OLUŞTUR
     makbuz_no = makbuz_kaydet(transfer_data)
+    
+    # Hareket kaydet (makbuz no ile)
     hareket_kaydet(kullanici_id, hareket_tipi, gonderen_tip, gonderen_id,
                    alan_tip, alan_id, palet_tipi_id, miktar, aciklama, makbuz_no)
     
@@ -1016,19 +1085,26 @@ def transfer_yap(current_user):
 
 
 # ==================== MAKBUZ GÖSTERME ====================
+
 @app.route('/api/makbuz/<makbuz_no>', methods=['GET'])
 @token_required
 def makbuz_goster(makbuz_no):
+    """Makbuz detaylarını getir"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT * FROM makbuzlar WHERE makbuz_no = %s', (makbuz_no,))
+    # Makbuz bilgileri
+    cursor.execute('''
+        SELECT * FROM makbuzlar WHERE makbuz_no = %s
+    ''', (makbuz_no,))
     makbuz = cursor.fetchone()
+    
     if not makbuz:
         cursor.close()
         conn.close()
         return jsonify({'hata': 'Makbuz bulunamadı'}), 404
     
+    # Makbuz detayları
     cursor.execute('''
         SELECT stok_kodu, palet_adi, miktar FROM makbuz_detaylari
         WHERE makbuz_id = %s
@@ -1051,7 +1127,8 @@ def makbuz_goster(makbuz_no):
     })
 
 
-# ==================== HAREKETLER ====================
+# ==================== HAREKETLER (MAKBUZLU) ====================
+
 @app.route('/api/hareketler', methods=['GET'])
 @token_required
 def get_hareketler(current_user):
@@ -1113,6 +1190,7 @@ def get_hareketler(current_user):
 @app.route('/api/hareketler_filtreli', methods=['POST'])
 @token_required
 def get_hareketler_filtreli(current_user):
+    """Filtreli hareket geçmişi - MAKBUZLU"""
     data = request.get_json()
     dagitici_id = data.get('dagitici_id')
     palet_tipi_id = data.get('palet_tipi_id')
@@ -1141,9 +1219,11 @@ def get_hareketler_filtreli(current_user):
     if dagitici_id:
         query += ''' AND (h.gonderen_id = %s OR h.alan_id = %s) '''
         params.extend([dagitici_id, dagitici_id])
+    
     if palet_tipi_id:
         query += ''' AND h.palet_tipi_id = %s '''
         params.append(palet_tipi_id)
+    
     if baslangic and bitis:
         query += ''' AND DATE(h.tarih) BETWEEN %s AND %s '''
         params.extend([baslangic, bitis])
@@ -1182,6 +1262,7 @@ def get_hareketler_filtreli(current_user):
 
 
 # ==================== DEPO STOK HAREKETLERİ ====================
+
 @app.route('/api/depo_stok_hareket', methods=['POST'])
 @token_required
 def depo_stok_hareket(current_user):
@@ -1196,6 +1277,7 @@ def depo_stok_hareket(current_user):
     
     if not palet_tipi_id or not miktar or not islem_tipi:
         return jsonify({'hata': 'Eksik parametreler'}), 400
+    
     if miktar <= 0:
         return jsonify({'hata': 'Miktar pozitif olmalı'}), 400
     
@@ -1230,8 +1312,14 @@ def depo_stok_hareket(current_user):
         conn.close()
         return jsonify({'hata': hata}), 400
     
-    hareket_kaydet(current_user['id'], "DEPO_STOK_HAREKET", SAHIP_TIP_DEPO, 0,
-                   SAHIP_TIP_DEPO, 0, palet_tipi_id, miktar, hareket_aciklama)
+    hareket_kaydet(
+        current_user['id'],
+        "DEPO_STOK_HAREKET",
+        SAHIP_TIP_DEPO, 0,
+        SAHIP_TIP_DEPO, 0,
+        palet_tipi_id, miktar,
+        hareket_aciklama
+    )
     
     cursor.close()
     conn.close()
@@ -1244,6 +1332,7 @@ def depo_stok_hareket(current_user):
 
 
 # ==================== RAPORLAR ====================
+
 @app.route('/api/rapor/hareketler', methods=['POST'])
 @token_required
 def rapor_hareketler(current_user):
@@ -1338,9 +1427,11 @@ def rapor_istatistikler(current_user):
 
 
 # ==================== PDF RAPOR ====================
+
 @app.route('/api/rapor/pdf', methods=['POST'])
 @token_required
 def rapor_pdf(current_user):
+    """PDF Rapor Oluştur (sadece depocu)"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1392,6 +1483,7 @@ def rapor_pdf(current_user):
             ''')
         
         sonuc = cursor.fetchall()
+        
         data = [['Tarih', 'Yapan', 'İşlem Tipi', 'Stok Kodu', 'Palet Tipi', 'Miktar', 'Makbuz No', 'Açıklama']]
         for row in sonuc:
             tip_text = {
@@ -1401,7 +1493,11 @@ def rapor_pdf(current_user):
                 'DAGITICI_DEPO': 'Dağıtıcı→Depo',
                 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
             }.get(row[2], row[2])
-            data.append([row[0][:16], row[1], tip_text, row[3], row[4], str(row[5]), row[7] or '-', (row[6][:40] + '...') if row[6] and len(row[6]) > 40 else (row[6] or '')])
+            
+            data.append([
+                row[0][:16], row[1], tip_text, row[3], row[4],
+                str(row[5]), row[7] or '-', (row[6][:40] + '...') if row[6] and len(row[6]) > 40 else (row[6] or '')
+            ])
         
         table = Table(data, colWidths=[80, 70, 80, 60, 70, 40, 90, 100])
         table.setStyle(TableStyle([
@@ -1503,6 +1599,7 @@ def rapor_pdf(current_user):
 
 
 # ==================== EXCEL EXPORT ====================
+
 @app.route('/api/rapor/export', methods=['POST'])
 @token_required
 def rapor_export(current_user):
@@ -1522,6 +1619,7 @@ def rapor_export(current_user):
     if rapor_tipi == 'hareketler':
         sheet = workbook.active
         sheet.title = "Hareketler"
+        
         headers = ['Tarih', 'Yapan Kullanıcı', 'İşlem Tipi', 'Stok Kodu', 'Palet Adı', 'Miktar', 'Makbuz No', 'Açıklama']
         for col, header in enumerate(headers, 1):
             cell = sheet.cell(row=1, column=col, value=header)
@@ -1555,6 +1653,7 @@ def rapor_export(current_user):
                 'DAGITICI_DEPO': 'Dağıtıcı→Depo',
                 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
             }.get(row[2], row[2])
+            
             sheet.cell(row=row_idx, column=1, value=row[0])
             sheet.cell(row=row_idx, column=2, value=row[1])
             sheet.cell(row=row_idx, column=3, value=tip_text)
@@ -1563,12 +1662,14 @@ def rapor_export(current_user):
             sheet.cell(row=row_idx, column=6, value=row[5])
             sheet.cell(row=row_idx, column=7, value=row[6] or '-')
             sheet.cell(row=row_idx, column=8, value=row[7] or '')
+        
         for col in range(1, 9):
             sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
             
     elif rapor_tipi == 'stoklar':
         sheet = workbook.active
         sheet.title = "Stoklar"
+        
         headers = ['Stok Sahibi', 'Stok Kodu', 'Palet Adı', 'Miktar']
         for col, header in enumerate(headers, 1):
             cell = sheet.cell(row=1, column=col, value=header)
@@ -1620,6 +1721,7 @@ def rapor_export(current_user):
     elif rapor_tipi == 'musteriler':
         sheet = workbook.active
         sheet.title = "Müşteriler"
+        
         headers = ['Müşteri Kodu', 'Müşteri Adı', 'Tabela Adı']
         for col, header in enumerate(headers, 1):
             cell = sheet.cell(row=1, column=col, value=header)
@@ -1651,6 +1753,7 @@ def rapor_export(current_user):
 
 
 # ==================== EXCEL YÜKLEME ====================
+
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
@@ -1725,6 +1828,7 @@ def musteri_excel_yukle(current_user):
                     VALUES (%s, %s, %s)
                     RETURNING id
                 ''', (musteri_kodu, musteri_adi, tabela_adi))
+                
                 musteri_id = cursor.fetchone()[0]
                 
                 for palet_id in paletler:
@@ -1740,6 +1844,7 @@ def musteri_excel_yukle(current_user):
                 
                 eklenen += 1
                 mevcut_musteriler[musteri_kodu] = musteri_id
+                
             except Exception as e:
                 hatalar.append(f"Satır {row}: Ekleme hatası - {str(e)}")
     
@@ -1761,9 +1866,11 @@ def musteri_excel_yukle(current_user):
 
 
 # ==================== YEDEKLEME ====================
+
 @app.route('/api/yedekle', methods=['GET'])
 @token_required
 def yedekle(current_user):
+    """Veritabanı yedeği oluştur (sadece depocu)"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1772,6 +1879,7 @@ def yedekle(current_user):
     
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Hareketler tablosu
         cursor.execute('SELECT * FROM hareketler ORDER BY id')
         hareketler = cursor.fetchall()
         if hareketler:
@@ -1781,6 +1889,7 @@ def yedekle(current_user):
             csv_writer.writerows(hareketler)
             zipf.writestr('hareketler.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Stoklar tablosu
         cursor.execute('SELECT * FROM stoklar')
         stoklar = cursor.fetchall()
         if stoklar:
@@ -1790,6 +1899,7 @@ def yedekle(current_user):
             csv_writer.writerows(stoklar)
             zipf.writestr('stoklar.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Müşteriler tablosu
         cursor.execute('SELECT * FROM musteriler')
         musteriler = cursor.fetchall()
         if musteriler:
@@ -1799,6 +1909,7 @@ def yedekle(current_user):
             csv_writer.writerows(musteriler)
             zipf.writestr('musteriler.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Kullanıcılar tablosu (şifreler hash'li)
         cursor.execute('SELECT id, kullanici_adi, tip, ad_soyad FROM kullanicilar')
         kullanicilar = cursor.fetchall()
         if kullanicilar:
@@ -1808,6 +1919,7 @@ def yedekle(current_user):
             csv_writer.writerows(kullanicilar)
             zipf.writestr('kullanicilar.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Palet tipleri tablosu
         cursor.execute('SELECT * FROM palet_tipleri')
         palet_tipleri = cursor.fetchall()
         if palet_tipleri:
@@ -1817,6 +1929,7 @@ def yedekle(current_user):
             csv_writer.writerows(palet_tipleri)
             zipf.writestr('palet_tipleri.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Makbuzlar tablosu
         cursor.execute('SELECT * FROM makbuzlar')
         makbuzlar = cursor.fetchall()
         if makbuzlar:
@@ -1826,6 +1939,7 @@ def yedekle(current_user):
             csv_writer.writerows(makbuzlar)
             zipf.writestr('makbuzlar.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Makbuz detayları tablosu
         cursor.execute('SELECT * FROM makbuz_detaylari')
         makbuz_detaylari = cursor.fetchall()
         if makbuz_detaylari:
@@ -1835,6 +1949,7 @@ def yedekle(current_user):
             csv_writer.writerows(makbuz_detaylari)
             zipf.writestr('makbuz_detaylari.csv', csv_buffer.getvalue().decode('utf-8'))
         
+        # Yedekleme bilgisi
         info = f"""Palet Takip Sistemi Yedeği
 Oluşturma Tarihi: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
 Oluşturan: {current_user['ad_soyad']} ({current_user['kullanici_adi']})
@@ -1865,6 +1980,7 @@ Toplam Kayıtlar:
 @app.route('/api/yedekleme_ayarla', methods=['POST'])
 @token_required
 def yedekleme_ayarla(current_user):
+    """Otomatik yedekleme ayarları (sadece depocu)"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1881,11 +1997,13 @@ def yedekleme_ayarla(current_user):
         VALUES (%s, %s)
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
     ''', ('yedekleme_aktif', str(aktif)))
+    
     cursor.execute('''
         INSERT INTO ayarlar (key, value) 
         VALUES (%s, %s)
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
     ''', ('yedekleme_periyot', periyot))
+    
     cursor.execute('''
         INSERT INTO ayarlar (key, value) 
         VALUES (%s, %s)
@@ -1905,6 +2023,7 @@ def yedekleme_ayarla(current_user):
 @app.route('/api/yedekleme_ayarlari', methods=['GET'])
 @token_required
 def yedekleme_ayarlari(current_user):
+    """Yedekleme ayarlarını getir"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1926,9 +2045,11 @@ def yedekleme_ayarlari(current_user):
 
 
 # ==================== STOK ONARMA ====================
+
 @app.route('/api/stok_onar', methods=['GET'])
 @token_required
 def stok_onar(current_user):
+    """Eksik stokları onar (sadece depocu)"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     
@@ -1949,6 +2070,7 @@ def stok_onar(current_user):
                 SELECT id FROM stoklar 
                 WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s
             ''', ('DAGITICI', d[0], p[0]))
+            
             if not cursor.fetchone():
                 cursor.execute('''
                     INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar)
@@ -1964,6 +2086,7 @@ def stok_onar(current_user):
 
 
 # ==================== UYGULAMA BAŞLATMA ====================
+
 if __name__ == '__main__':
     veritabani_olustur()
     from waitress import serve
