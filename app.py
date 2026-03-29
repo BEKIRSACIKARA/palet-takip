@@ -126,13 +126,17 @@ def makbuz_no_olustur():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT MAX(CAST(SUBSTR(makbuz_no, 4) AS INTEGER)) FROM makbuzlar")
-        son_makbuz = cursor.fetchone()[0]
+        # Metin parçalamak yerine direkt en yüksek ID'yi buluyoruz. 
+        # Bu yöntem formatı bozuk test verilerinden asla etkilenmez.
+        cursor.execute("SELECT MAX(id) FROM makbuzlar")
+        son_id = cursor.fetchone()[0]
+        yeni_no = (son_id + 1) if son_id else 1
     except:
-        son_makbuz = None
-    yeni_no = (son_makbuz + 1) if son_makbuz else 1
-    cursor.close()
-    conn.close()
+        yeni_no = 1
+    finally:
+        cursor.close()
+        conn.close()
+        
     return f"PLT{str(yeni_no).zfill(5)}"
 
 
