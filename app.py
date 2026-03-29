@@ -462,24 +462,25 @@ def makbuz_pdf(current_user, makbuz_no):
     cursor.close()
     conn.close()
 
-    # --- YENİ EKLENEN FONT TANITMA KISMI ---
-    font_path = os.path.join(os.path.dirname(__file__), 'Roboto-Regular.ttf') # Dosya adının birebir aynı olduğundan emin ol
+    # --- FONT TANITMA KISMI (ARIAL KULLANIYORUZ) ---
+    font_path = os.path.join(os.path.dirname(__file__), 'arial.ttf') # Dosya adının arial.ttf olduğundan emin ol
     try:
         pdfmetrics.registerFont(TTFont('TurkceFont', font_path))
         aktif_font = 'TurkceFont'
     except Exception as e:
-        aktif_font = 'Helvetica' # Eğer font dosyası bulunamazsa uygulama çökmesin diye eski haline döner
+        aktif_font = 'Helvetica'
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     
-    # --- STİLLERİ TÜRKÇE FONT İLE EZİYORUZ ---
+    # Stilleri Türkçe font ile eziyoruz
     styles['Normal'].fontName = aktif_font
     styles['Heading1'].fontName = aktif_font
     styles['Heading2'].fontName = aktif_font
     
     title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontName=aktif_font, fontSize=16, alignment=1, spaceAfter=20)
+    normal_style = styles['Normal'] # Alt satıra inmesi gereken uzun metinler için stili hazırladık
     
     story = []
     story.append(Paragraph("ULUDAĞ İÇECEK", title_style))
@@ -488,31 +489,45 @@ def makbuz_pdf(current_user, makbuz_no):
     story.append(Spacer(1, 20))
     
     tip_text = {'DEPO_DAGITICI': 'Depo → Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı → Müşteri', 'MUSTERI_DAGITICI': 'Müşteri → Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı → Depo'}.get(makbuz[3], makbuz[3])
-    data = [['Makbuz No:', makbuz[1]], ['Tarih:', makbuz[2]], ['İşlem Türü:', tip_text], ['Teslim Eden:', makbuz[6]], ['Teslim Alan:', makbuz[9]], ['Toplam Miktar:', str(makbuz[10])], ['Açıklama:', makbuz[11]], ['İşlemi Yapan:', makbuz[13]]]
     
-    # --- TABLOLARIN İÇİNDEKİ YAZILAR İÇİN FONTU GÜNCELLİYORUZ ---
+    # --- YANA TAŞMAYI ENGELLEYEN KISIM ---
+    # Uzun olabilecek metinleri Paragraph() içine aldık ki sınırda alt satıra insin
+    data = [
+        ['Makbuz No:', makbuz[1]], 
+        ['Tarih:', makbuz[2]], 
+        ['İşlem Türü:', tip_text], 
+        ['Teslim Eden:', Paragraph(makbuz[6], normal_style)], 
+        ['Teslim Alan:', Paragraph(makbuz[9], normal_style)], 
+        ['Toplam Miktar:', str(makbuz[10])], 
+        ['Açıklama:', Paragraph(makbuz[11] or "", normal_style)], 
+        ['İşlemi Yapan:', makbuz[13]]
+    ]
+    
     table = Table(data, colWidths=[100, 300])
     table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('FONTNAME', (0, 0), (-1, -1), aktif_font) # Tablo içine fontu zorla
+        ('FONTNAME', (0, 0), (-1, -1), aktif_font),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE') # Metinler alt satıra inince hücrede ortalansın
     ]))
     story.append(table)
     
     story.append(Spacer(1, 20))
     
-    detay_data = [['Stok Kodu', 'Palet Adı', 'Miktar']] + [[d[0], d[1], str(d[2])] for d in detaylar]
+    # Detaylar tablosunda da palet adı uzun olabilir diye önlem alıyoruz
+    detay_data = [['Stok Kodu', 'Palet Adı', 'Miktar']] + [[d[0], Paragraph(d[1], normal_style), str(d[2])] for d in detaylar]
     detay_table = Table(detay_data, colWidths=[100, 200, 80])
     detay_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, -1), aktif_font) # Detay tablosuna fontu zorla
+        ('FONTNAME', (0, 0), (-1, -1), aktif_font),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
     ]))
     story.append(detay_table)
     
     story.append(Spacer(1, 30))
-    story.append(Paragraph("_________________________", styles['Normal']))
-    story.append(Paragraph("Yetkili İmza", styles['Normal']))
+    story.append(Paragraph("_________________________", normal_style))
+    story.append(Paragraph("Yetkili İmza", normal_style))
     
     doc.build(story)
     buffer.seek(0)
