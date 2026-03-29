@@ -201,9 +201,9 @@
             else if (aid === 'hareketler') await showHareketler(div);
         }
 
-        async function showDepoStok(div) { let r = await apiCall('/api/stok?tip=DEPO&id=0'); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Depo Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `   <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; }
-        async function showKendiStok(div) { let r = await apiCall(`/api/stok?tip=DAGITICI&id=${currentUser.id}`); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Kendi Stoğunuz</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `   <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; }
-        async function showDagiticiStoklar(div) { let r = await apiCall('/api/dagitici_listesi'); if (r && r.data && r.data.length) { div.innerHTML = ''; for (let d of r.data) { let s = await apiCall(`/api/stok?tip=DAGITICI&id=${d.id}`); if (s && s.data) div.innerHTML += `<div class="card"><div class="card-title">${d.ad_soyad} (${d.kullanici_adi})</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${s.data.map(s => `   <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; } } else div.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor.</div>'; }
+        async function showDepoStok(div) { let r = await apiCall('/api/stok?tip=DEPO&id=0'); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Depo Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; }
+        async function showKendiStok(div) { let r = await apiCall(`/api/stok?tip=DAGITICI&id=${currentUser.id}`); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Kendi Stoğunuz</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></td></div>`; }
+        async function showDagiticiStoklar(div) { let r = await apiCall('/api/dagitici_listesi'); if (r && r.data && r.data.length) { div.innerHTML = ''; for (let d of r.data) { let s = await apiCall(`/api/stok?tip=DAGITICI&id=${d.id}`); if (s && s.data) div.innerHTML += `<div class="card"><div class="card-title">${d.ad_soyad} (${d.kullanici_adi})</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${s.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; } } else div.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor.</div>'; }
         
         async function showMusteriStoklar(div) {
             let r = await apiCall('/api/musteri_stoklari');
@@ -227,7 +227,7 @@
             if (r && r.data) {
                 let stoklar = r.data.filter(s => s.miktar > 0);
                 if (stoklar.length) {
-                    document.getElementById('musteriStokSonuc').innerHTML = `<div class="card"><div class="card-title">📦 ${ad} Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${stoklar.map(s => `   <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`;
+                    document.getElementById('musteriStokSonuc').innerHTML = `<div class="card"><div class="card-title">📦 ${ad} Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${stoklar.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></tr></div>`;
                 } else {
                     document.getElementById('musteriStokSonuc').innerHTML = `<div class="card">📦 ${ad} - Stokta palet bulunmuyor</div>`;
                 }
@@ -259,7 +259,40 @@
         
         async function depoMusteriyePaletVer() { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) return; document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver (Depodan)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="depoMusteriTransfer('DEPO_DAGITICI')">Palet Ver</button></div>`; }
         async function depoMusteridenPaletAl() { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) return; document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (Depoya İade)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="depoMusteriTransfer('MUSTERI_DEPO')">Palet Al</button></div>`; }
-        async function depoMusteriTransfer(tip) { let pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value; if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; } let body = tip === 'DEPO_DAGITICI' ? { hareket_tipi: 'DEPO_DAGITICI', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId } : { hareket_tipi: 'DAGITICI_DEPO', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId }; showToast('İşlem yapılıyor...', 'info'); let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj, 'success'); if (r.data.makbuz_no) { setTimeout(() => showMakbuz(r.data.makbuz_no), 500); } else { goBack(); } } else { showToast(r?.data?.hata || 'İşlem başarısız', 'error'); } }
+        
+        async function depoMusteriTransfer(tip) {
+            let pid = document.getElementById('palet_tipi_id')?.value;
+            let m = document.getElementById('miktar')?.value;
+            
+            if (!pid || !m || m <= 0) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            let body = tip === 'DEPO_DAGITICI' 
+                ? { hareket_tipi: 'DEPO_DAGITICI', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId }
+                : { hareket_tipi: 'DAGITICI_DEPO', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId };
+            
+            showToast('İşlem yapılıyor...', 'info');
+            
+            let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+            
+            if (r && r.status === 200 && r.data.success) {
+                showToast(r.data.mesaj, 'success');
+                document.getElementById('miktar').value = '';
+                document.getElementById('palet_tipi_id').value = '';
+                window.seciliMusteriId = null;
+                document.querySelectorAll('#musteriListesiSecim2 .musteri-item').forEach(i => i.classList.remove('selected'));
+                document.getElementById('musteriIslemlerDepo').style.display = 'none';
+                if (r.data.makbuz_no) {
+                    setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
+                } else {
+                    goBack();
+                }
+            } else {
+                showToast(r?.data?.hata || 'İşlem başarısız', 'error');
+            }
+        }
         
         function showDepoDagiticiTransfer(div) {
             div.innerHTML = `<div class="card"><div class="card-title">➡️ Depodan Dağıtıcıya Transfer</div><div class="form-group"><label>Dağıtıcı</label><select id="alici_id"></select></div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id"></select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="transferIslem('DEPO_DAGITICI')">Transfer Yap</button></div>`;
@@ -290,100 +323,72 @@
         function musteriSecAl(el) { document.querySelectorAll('#musteriListesiAl .musteri-item').forEach(i => i.classList.remove('selected')); el.classList.add('selected'); window.seciliMusteriIdAl = parseInt(el.getAttribute('data-id')); }
         
         async function transferIslem(tip) {
-    let aid = document.getElementById('alici_id')?.value;
-    let pid = document.getElementById('palet_tipi_id')?.value;
-    let m = document.getElementById('miktar')?.value;
-    
-    if (!pid || !m || m <= 0) {
-        showToast('Tüm alanları doldurun', 'error');
-        return;
-    }
-    
-    let body = {
-        hareket_tipi: tip,
-        palet_tipi_id: parseInt(pid),
-        miktar: parseInt(m)
-    };
-    if (aid) body.alici_id = parseInt(aid);
-    
-    showToast('İşlem yapılıyor...', 'info');
-    
-    let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-    
-    if (r && r.status === 200 && r.data.success) {
-        // BAŞARILI - Yeşil uyarı
-        showToast(r.data.mesaj, 'success');
-        
-        // Form alanlarını temizle
-        document.getElementById('miktar').value = '';
-        document.getElementById('palet_tipi_id').value = '';
-        if (document.getElementById('alici_id')) document.getElementById('alici_id').value = '';
-        
-        // Makbuz varsa göster
-        if (r.data.makbuz_no) {
-            setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
-        } else {
-            goBack();
+            let aid = document.getElementById('alici_id')?.value, pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value;
+            if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
+            let body = { hareket_tipi: tip, palet_tipi_id: parseInt(pid), miktar: parseInt(m) };
+            if (aid) body.alici_id = parseInt(aid);
+            showToast('İşlem yapılıyor...', 'info');
+            let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+            if (r && r.status === 200 && r.data.success) {
+                showToast(r.data.mesaj, 'success');
+                document.getElementById('miktar').value = '';
+                document.getElementById('palet_tipi_id').value = '';
+                if (document.getElementById('alici_id')) document.getElementById('alici_id').value = '';
+                if (r.data.makbuz_no) {
+                    setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
+                } else {
+                    goBack();
+                }
+            } else {
+                showToast(r?.data?.hata || 'Transfer başarısız', 'error');
+            }
         }
-    } else {
-        // HATALI - Kırmızı uyarı
-        showToast(r?.data?.hata || 'Transfer başarısız', 'error');
-    }
-}
         
         async function transferIslemMusteri(tip) {
-    let aid = tip === 'DAGITICI_MUSTERI' ? window.seciliMusteriIdVer : window.seciliMusteriIdAl;
-    let pid = document.getElementById('palet_tipi_id')?.value;
-    let m = document.getElementById('miktar')?.value;
-    
-    if (!aid) {
-        showToast('Lütfen bir müşteri seçin', 'error');
-        return;
-    }
-    if (!pid || !m || m <= 0) {
-        showToast('Tüm alanları doldurun', 'error');
-        return;
-    }
-    
-    let body = {
-        hareket_tipi: tip,
-        palet_tipi_id: parseInt(pid),
-        miktar: parseInt(m),
-        alici_id: parseInt(aid)
-    };
-    
-    showToast('İşlem yapılıyor...', 'info');
-    
-    let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-    
-    if (r && r.status === 200 && r.data.success) {
-        // BAŞARILI - Yeşil uyarı
-        showToast(r.data.mesaj, 'success');
-        
-        // Form alanlarını temizle
-        document.getElementById('miktar').value = '';
-        document.getElementById('palet_tipi_id').value = '';
-        
-        // Seçili müşteriyi temizle
-        if (tip === 'DAGITICI_MUSTERI') {
-            window.seciliMusteriIdVer = null;
-            document.querySelectorAll('#musteriListesiVer .musteri-item').forEach(i => i.classList.remove('selected'));
-        } else {
-            window.seciliMusteriIdAl = null;
-            document.querySelectorAll('#musteriListesiAl .musteri-item').forEach(i => i.classList.remove('selected'));
+            let aid = tip === 'DAGITICI_MUSTERI' ? window.seciliMusteriIdVer : window.seciliMusteriIdAl;
+            let pid = document.getElementById('palet_tipi_id')?.value;
+            let m = document.getElementById('miktar')?.value;
+            
+            if (!aid) {
+                showToast('Lütfen bir müşteri seçin', 'error');
+                return;
+            }
+            if (!pid || !m || m <= 0) {
+                showToast('Tüm alanları doldurun', 'error');
+                return;
+            }
+            
+            let body = {
+                hareket_tipi: tip,
+                palet_tipi_id: parseInt(pid),
+                miktar: parseInt(m),
+                alici_id: parseInt(aid)
+            };
+            
+            showToast('İşlem yapılıyor...', 'info');
+            
+            let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+            
+            if (r && r.status === 200 && r.data.success) {
+                showToast(r.data.mesaj, 'success');
+                document.getElementById('miktar').value = '';
+                document.getElementById('palet_tipi_id').value = '';
+                if (tip === 'DAGITICI_MUSTERI') {
+                    window.seciliMusteriIdVer = null;
+                    document.querySelectorAll('#musteriListesiVer .musteri-item').forEach(i => i.classList.remove('selected'));
+                } else {
+                    window.seciliMusteriIdAl = null;
+                    document.querySelectorAll('#musteriListesiAl .musteri-item').forEach(i => i.classList.remove('selected'));
+                }
+                if (r.data.makbuz_no) {
+                    setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
+                } else {
+                    goBack();
+                }
+            } else {
+                showToast(r?.data?.hata || 'Transfer başarısız', 'error');
+            }
         }
-        
-        // Makbuz varsa göster
-        if (r.data.makbuz_no) {
-            setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
-        } else {
-            goBack();
-        }
-    } else {
-        // HATALI - Kırmızı uyarı
-        showToast(r?.data?.hata || 'Transfer başarısız', 'error');
-    }
-}
         
         async function showMakbuz(no) {
             let r = await apiCall(`/api/makbuz/${no}`);
@@ -406,8 +411,8 @@
                         </div>
                         <table style="width:100%;border-collapse:collapse;">
                             <thead><tr style="background:#2196F3;color:white;"><th>Stok Kodu</th><th>Palet Adı</th><th>Miktar</th></tr></thead>
-                            <tbody>${m.detaylar.map(d => `    <tr><td>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}</td></tr>`).join('')}
-                            <tr style="background:#f5f5f5;font-weight:bold;"><td colspan="2">Toplam</td><td style="text-align:center">${m.toplam_miktar}</td></tr>
+                            <tbody>${m.detaylar.map(d => `    <td>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}<td>`).join('')}
+                            <tr style="background:#f5f5f5;font-weight:bold;"><td colspan="2">Toplam<td style="text-align:center">${m.toplam_miktar} </tr>
                             </tbody>
                         </table>
                         <div style="margin:20px 0;padding:12px;background:#f9f9f9;">
@@ -442,14 +447,14 @@
         function showMusteriEkle(div) { div.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button></div>`; }
         async function yeniMusteriEkle() { let k = document.getElementById('musteri_kodu').value, a = document.getElementById('musteri_adi').value, t = document.getElementById('tabela_adi').value; if (!k || !a || !t) { showToast('Tüm alanları doldurun', 'error'); return; } let r = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu: k, musteri_adi: a, tabela_adi: t }) }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Ekleme başarısız', 'error'); }
         
-        async function showKullaniciYonetim(div) { let k = await apiCall('/api/kullanici_listesi'); if (!k?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></thead><tbody>${k.data.map(k => `    <tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id},'${k.kullanici_adi}','${k.ad_soyad}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`; }
+        async function showKullaniciYonetim(div) { let k = await apiCall('/api/kullanici_listesi'); if (!k?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></thead><tbody>${k.data.map(k => `     <td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id},'${k.kullanici_adi}','${k.ad_soyad}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`; }
         function showYeniKullaniciModal() { document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle'; document.getElementById('kullanici_adi_duzenle').value = ''; document.getElementById('ad_soyad_duzenle').value = ''; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = ''; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function duzenleKullanici(id, ad, soyad) { document.getElementById('kullaniciModalTitle').innerText = 'Dağıtıcı Düzenle'; document.getElementById('kullanici_adi_duzenle').value = ad; document.getElementById('ad_soyad_duzenle').value = soyad; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = id; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
         async function kaydetKullanici() { let id = document.getElementById('kullanici_id_duzenle').value, ad = document.getElementById('kullanici_adi_duzenle').value, soyad = document.getElementById('ad_soyad_duzenle').value, s = document.getElementById('kullanici_sifre').value; if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; } if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; } let r; if (id) { let body = { id: parseInt(id), kullanici_adi: ad, ad_soyad: soyad }; if (s) body.sifre = s; r = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) }); } else { r = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) }); } if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); kapatKullaniciModal(); goBack(); } else showToast(r?.data?.hata || 'İşlem başarısız', 'error'); }
         async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz?')) return; let r = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Silme başarısız', 'error'); }
         
-        async function showPaletTipleri(div) { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></thead><tbody>${p.data.map(p => `     <td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id},'${p.stok_kodu}','${p.palet_adi}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="paletModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi"></div><input type="hidden" id="palet_id"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`; }
+        async function showPaletTipleri(div) { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></thead><tbody>${p.data.map(p => `      <td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id},'${p.stok_kodu}','${p.palet_adi}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td>`).join('')}</tbody> </table></div><div id="paletModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi"></div><input type="hidden" id="palet_id"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`; }
         function showYeniPaletTipiModal() { document.getElementById('modalTitle').innerText = 'Yeni Palet Tipi'; document.getElementById('stok_kodu').value = ''; document.getElementById('palet_adi').value = ''; document.getElementById('palet_id').value = ''; document.getElementById('paletModal').style.display = 'flex'; }
         function duzenlePaletTipi(id, kod, ad) { document.getElementById('modalTitle').innerText = 'Palet Tipi Düzenle'; document.getElementById('stok_kodu').value = kod; document.getElementById('palet_adi').value = ad; document.getElementById('palet_id').value = id; document.getElementById('paletModal').style.display = 'flex'; }
         function kapatModal() { document.getElementById('paletModal').style.display = 'none'; }
@@ -462,7 +467,7 @@
         function showExcelExport(div) { div.innerHTML = `<div class="card"><div class="card-title">📤 Verileri Dışarı Aktar</div><div class="form-group"><label>Rapor Tipi</label><select id="export_tipi"><option value="hareketler">📋 Hareketler</option><option value="stoklar">📦 Stoklar</option><option value="musteriler">🏪 Müşteri Listesi</option></select></div><div id="tarihSecim" style="display:none;"><div class="form-group"><label>Başlangıç</label><input type="date" id="export_baslangic"></div><div class="form-group"><label>Bitiş</label><input type="date" id="export_bitis"></div></div><button class="btn" onclick="excelExportYap()">İndir</button></div>`; document.getElementById('export_tipi').addEventListener('change', () => { document.getElementById('tarihSecim').style.display = document.getElementById('export_tipi').value === 'hareketler' ? 'block' : 'none'; }); }
         async function excelExportYap() { let tip = document.getElementById('export_tipi').value, body = { rapor_tipi: tip }; if (tip === 'hareketler') { let b = document.getElementById('export_baslangic').value, e = document.getElementById('export_bitis').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } body.baslangic_tarihi = b; body.bitis_tarihi = e; } let r = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${tip}_raporu.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('Excel dosyası indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
         
-        async function showRaporlar(div) { let s = await apiCall('/api/rapor/istatistikler'); div.innerHTML = `<div class="card"><div class="card-title">📊 İstatistikler</div><div id="istatistikler"></div><button class="btn" onclick="pdfRaporIndir('istatistik')" style="margin-top:10px;background:#f44336;">📄 PDF Rapor</button></div><div class="card"><div class="card-title">📅 Tarih Aralığı Raporu</div><div class="form-group"><label>Başlangıç</label><input type="date" id="baslangic_tarihi"></div><div class="form-group"><label>Bitiş</label><input type="date" id="bitis_tarihi"></div><div class="form-group"><label>Rapor Tipi</label><select id="pdf_rapor_tipi"><option value="hareketler">Hareketler</option><option value="stoklar">Stoklar</option><option value="istatistik">İstatistikler</option></select></div><button class="btn" onclick="tarihRaporuGoster()">Raporu Göster</button><button class="btn" onclick="pdfRaporIndir()" style="margin-top:10px;background:#f44336;">📄 PDF İndir</button><button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel</button><div id="tarihRaporuSonuc"></div></div>`; if (s && s.data) { let d = s.data, html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>'; if (d.en_cok_transfer_yapan && d.en_cok_transfer_yapan.length) { html += '<table class="stok-table"><thead><th>Dağıtıcı</th><th>Sayı</th></thead><tbody>' + d.en_cok_transfer_yapan.map(x => ` <td>${x.ad_soyad}</td><td>${x.transfer_sayisi}</td></tr>`).join('') + '</tbody></table>'; } else html += '<p>Henüz transfer yok</p>'; html += '<h3>📦 En Çok Kullanılan Palet Tipleri</h3>'; if (d.en_cok_kullanilan_palet && d.en_cok_kullanilan_palet.length) { html += '<table class="stok-table"><thead><th>Palet Tipi</th><th>Kullanım</th><th>Toplam</th></thead><tbody>' + d.en_cok_kullanilan_palet.map(x => ` <td>${x.palet_adi}</td><td>${x.kullanim_sayisi}</td><td>${x.toplam_miktar}</td></tr>`).join('') + '</tbody></table>'; } else html += '<p>Henüz hareket yok</p>'; document.getElementById('istatistikler').innerHTML = html; } }
+        async function showRaporlar(div) { let s = await apiCall('/api/rapor/istatistikler'); div.innerHTML = `<div class="card"><div class="card-title">📊 İstatistikler</div><div id="istatistikler"></div><button class="btn" onclick="pdfRaporIndir('istatistik')" style="margin-top:10px;background:#f44336;">📄 PDF Rapor</button></div><div class="card"><div class="card-title">📅 Tarih Aralığı Raporu</div><div class="form-group"><label>Başlangıç</label><input type="date" id="baslangic_tarihi"></div><div class="form-group"><label>Bitiş</label><input type="date" id="bitis_tarihi"></div><div class="form-group"><label>Rapor Tipi</label><select id="pdf_rapor_tipi"><option value="hareketler">Hareketler</option><option value="stoklar">Stoklar</option><option value="istatistik">İstatistikler</option></select></div><button class="btn" onclick="tarihRaporuGoster()">Raporu Göster</button><button class="btn" onclick="pdfRaporIndir()" style="margin-top:10px;background:#f44336;">📄 PDF İndir</button><button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel</button><div id="tarihRaporuSonuc"></div></div>`; if (s && s.data) { let d = s.data, html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>'; if (d.en_cok_transfer_yapan && d.en_cok_transfer_yapan.length) { html += '<table class="stok-table"><thead><th>Dağıtıcı</th><th>Sayı</th></thead><tbody>' + d.en_cok_transfer_yapan.map(x => `  <td>${x.ad_soyad}</td><td>${x.transfer_sayisi}</td></tr>`).join('') + '</tbody></table>'; } else html += '<p>Henüz transfer yok</p>'; html += '<h3>📦 En Çok Kullanılan Palet Tipleri</h3>'; if (d.en_cok_kullanilan_palet && d.en_cok_kullanilan_palet.length) { html += '<table class="stok-table"><thead><th>Palet Tipi</th><th>Kullanım</th><th>Toplam</th></thead><tbody>' + d.en_cok_kullanilan_palet.map(x => `  <td>${x.palet_adi}</td><td>${x.kullanim_sayisi}</td><td>${x.toplam_miktar}</td></tr>`).join('') + '</tbody></table>'; } else html += '<p>Henüz hareket yok</p>'; document.getElementById('istatistikler').innerHTML = html; } }
         async function tarihRaporuGoster() { let b = document.getElementById('baslangic_tarihi').value, e = document.getElementById('bitis_tarihi').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } let d = document.getElementById('tarihRaporuSonuc'); d.innerHTML = '<div class="loading">Yükleniyor...</div>'; let r = await apiCall('/api/rapor/hareketler', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) }); if (r && r.data) { if (!r.data.length) { d.innerHTML = '<div class="card">📭 Hareket yok</div>'; return; } let html = `<div class="card"><div class="card-title">📋 ${b} - ${e}</div>`; for (let h of r.data) html += `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}${h.makbuz_no ? `<div class="detay">🧾 Makbuz: <span class="makbuz-link" onclick="showMakbuz('${h.makbuz_no}')">${h.makbuz_no}</span></div>` : ''}</div>`; html += '</div>'; d.innerHTML = html; } }
         async function tarihRaporuExport() { let b = document.getElementById('baslangic_tarihi').value, e = document.getElementById('bitis_tarihi').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } let r = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ rapor_tipi: 'hareketler', baslangic_tarihi: b, bitis_tarihi: e }) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `hareket_raporu_${b}_${e}.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('Excel raporu indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
         async function pdfRaporIndir(tip = null) { let rapor_tipi = tip, b = null, e = null; if (!tip) { rapor_tipi = document.getElementById('pdf_rapor_tipi').value; b = document.getElementById('baslangic_tarihi').value; e = document.getElementById('bitis_tarihi').value; } let body = { rapor_tipi: rapor_tipi }; if (b && e) { body.baslangic_tarihi = b; body.bitis_tarihi = e; } let r = await fetch(`${API_URL}/api/rapor/pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${rapor_tipi}_raporu.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('PDF rapor indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
