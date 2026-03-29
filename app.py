@@ -62,6 +62,15 @@ def veritabani_olustur():
     cursor.execute('''CREATE TABLE IF NOT EXISTS palet_tipleri (id SERIAL PRIMARY KEY, stok_kodu TEXT UNIQUE NOT NULL, palet_adi TEXT NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS stoklar (id SERIAL PRIMARY KEY, stok_sahibi_tip TEXT NOT NULL, stok_sahibi_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, miktar INTEGER DEFAULT 0, FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id), UNIQUE(stok_sahibi_tip, stok_sahibi_id, palet_tipi_id))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS hareketler (id SERIAL PRIMARY KEY, tarih TEXT NOT NULL, yapan_kullanici_id INTEGER NOT NULL, hareket_tipi TEXT NOT NULL, gonderen_tip TEXT NOT NULL, gonderen_id INTEGER NOT NULL, alan_tip TEXT NOT NULL, alan_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, miktar INTEGER NOT NULL, aciklama TEXT, makbuz_no TEXT, FOREIGN KEY (yapan_kullanici_id) REFERENCES kullanicilar(id), FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id))''')
+    # --- YENİ EKLENECEK KISIM BAŞLANGICI ---
+    # Eksik olan makbuz_no sütununu tabloya eklemeye zorluyoruz.
+    try:
+        cursor.execute("ALTER TABLE hareketler ADD COLUMN makbuz_no TEXT")
+        conn.commit()
+    except Exception:
+        # Sütun zaten varsa (veya eklendiyse) hata verir, veritabanının kilitlenmemesi için işlemi geri alıyoruz (rollback)
+        conn.rollback()
+    # --- YENİ EKLENECEK KISIM BİTİŞİ ---
     cursor.execute('''CREATE TABLE IF NOT EXISTS makbuzlar (id SERIAL PRIMARY KEY, makbuz_no TEXT UNIQUE NOT NULL, tarih TEXT NOT NULL, islem_tipi TEXT NOT NULL, gonderen_tip TEXT NOT NULL, gonderen_id INTEGER NOT NULL, gonderen_adi TEXT NOT NULL, alan_tip TEXT NOT NULL, alan_id INTEGER NOT NULL, alan_adi TEXT NOT NULL, toplam_miktar INTEGER NOT NULL, aciklama TEXT, yapan_kullanici_id INTEGER NOT NULL, yapan_kullanici_adi TEXT NOT NULL, FOREIGN KEY (yapan_kullanici_id) REFERENCES kullanicilar(id))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS makbuz_detaylari (id SERIAL PRIMARY KEY, makbuz_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, stok_kodu TEXT NOT NULL, palet_adi TEXT NOT NULL, miktar INTEGER NOT NULL, FOREIGN KEY (makbuz_id) REFERENCES makbuzlar(id), FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS ayarlar (key TEXT PRIMARY KEY, value TEXT NOT NULL)''')
