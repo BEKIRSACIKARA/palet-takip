@@ -26,7 +26,8 @@
         .action-btn .icon { font-size: 1.6rem; }
         
         .breadcrumb { background: #fff; padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 0.8rem; overflow-x: auto; white-space: nowrap; }
-        .breadcrumb a { color: #2196F3; text-decoration: none; cursor: pointer; }
+        .breadcrumb a { color: #2196F3; text-decoration: none; cursor: pointer; margin: 0 4px; }
+        .breadcrumb a:hover { text-decoration: underline; }
         .breadcrumb .separator { color: #999; margin: 0 4px; }
         .breadcrumb .current { color: #666; font-weight: 500; }
         
@@ -85,44 +86,44 @@
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
         const groups = {
             depocu: [
-                { id: "palet_islemleri", title: "PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
+                { id: "palet_islemleri", title: "🏭 PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
                     { id: "depoDagiticiTransfer", icon: "➡️", text: "Depo → Dağıtıcı", desc: "Depodan dağıtıcıya palet transferi" },
                     { id: "dagiticiIade", icon: "⬅️", text: "Dağıtıcıdan İade Al", desc: "Dağıtıcıdan depoya iade" },
                     { id: "depoMusteri", icon: "🏪", text: "Depo → Müşteri", desc: "Depodan müşteriye doğrudan palet transferi" }
                 ]},
-                { id: "stoklar", title: "STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
+                { id: "stoklar", title: "📊 STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
                     { id: "depoStok", icon: "📦", text: "Depo Stoğu", desc: "Depo stok durumu" },
                     { id: "dagiticiStoklar", icon: "🚚", text: "Dağıtıcı Stoğu", desc: "Tüm dağıtıcıların stokları" },
                     { id: "musteriStoklar", icon: "🏪", text: "Müşteri Stoğu", desc: "Sadece stoklu müşteriler" }
                 ]},
-                { id: "kullanici_islemleri", title: "KULLANICI İŞLEMLERİ", icon: "👥", desc: "Kullanıcı ve müşteri yönetimi", actions: [
+                { id: "kullanici_islemleri", title: "👥 KULLANICI İŞLEMLERİ", icon: "👥", desc: "Kullanıcı ve müşteri yönetimi", actions: [
                     { id: "kullaniciYonetim", icon: "👥", text: "Kullanıcılar", desc: "Dağıtıcıları yönet" },
                     { id: "musteriEkle", icon: "👤", text: "Müşteri Ekle", desc: "Yeni müşteri ekle" }
                 ]},
-                { id: "veri_guncelleme", title: "VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
+                { id: "veri_guncelleme", title: "📂 VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
                     { id: "excelYukle", icon: "📂", text: "Müşteri Verilerini Yükle", desc: "Excel'den müşteri yükle" },
                     { id: "excelExport", icon: "📤", text: "Verileri Dışarı Aktar", desc: "Excel'e veri aktar" }
                 ]},
-                { id: "duzenleme", title: "STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
+                { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
                     { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
                     { id: "paletTipleri", icon: "🏷️", text: "Palet Tip Ekle Sil", desc: "Palet tiplerini yönet" },
                     { id: "yedekleme", icon: "💾", text: "Yedekleme", desc: "Veri yedekleme" }
                 ]},
-                { id: "hareketler", title: "HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
+                { id: "hareketler", title: "📋 HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
                     { id: "hareketler", icon: "📋", text: "Hareketler", desc: "Tüm hareketleri gör" }
                 ]}
             ],
             dagitici: [
-                { id: "stoklar", title: "STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
+                { id: "stoklar", title: "📊 STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
                     { id: "kendiStok", icon: "📦", text: "Kendi Stoğum", desc: "Kendi stok durumunuz" },
                     { id: "musteriStoklar", icon: "🏪", text: "Müşteri Stoğu", desc: "Sadece stoklu müşteriler" }
                 ]},
-                { id: "palet_islemleri", title: "PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
+                { id: "palet_islemleri", title: "🏭 PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
                     { id: "musteriyeVer", icon: "➡️", text: "Müşteriye Ver", desc: "Müşteriye palet ver" },
                     { id: "musteridenAl", icon: "⬅️", text: "Müşteriden Al", desc: "Müşteriden palet al" }
                 ]},
-                { id: "hareketler", title: "HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
+                { id: "hareketler", title: "📋 HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
                     { id: "hareketler", icon: "📋", text: "Hareketlerim", desc: "Kendi hareketlerinizi gör" }
                 ]}
             ]
@@ -164,7 +165,17 @@
         function goToGroup(id) { let list = currentUser.tip === 'DEPOCU' ? groups.depocu : groups.dagitici; let g = list.find(x => x.id === id); if (g) { currentLevel = 1; currentGroup = g; currentAction = null; render(); } }
         function goToAction(id) { if (currentGroup) { let a = currentGroup.actions.find(x => x.id === id); if (a) { currentLevel = 2; currentAction = a; render(); } } }
         function goBack() { if (currentLevel === 2) { currentLevel = 1; currentAction = null; render(); } else if (currentLevel === 1) { currentLevel = 0; currentGroup = null; render(); } }
-        function getBreadcrumb() { let items = [{ label: "Ana Sayfa", level: 0, action: () => goToMainMenu() }]; if (currentGroup) items.push({ label: currentGroup.title, level: 1, action: () => goToGroup(currentGroup.id) }); if (currentAction) items.push({ label: currentAction.text, level: 2, action: null }); return items; }
+        
+        function getBreadcrumb() {
+            let items = [{ label: "Ana Sayfa", level: 0, action: () => goToMainMenu() }];
+            if (currentGroup) {
+                items.push({ label: currentGroup.title, level: 1, action: () => goToGroup(currentGroup.id) });
+            }
+            if (currentAction) {
+                items.push({ label: currentAction.text, level: 2, action: null });
+            }
+            return items;
+        }
 
         async function render() {
             if (!currentUser) return;
@@ -172,9 +183,23 @@
             if (currentLevel === 0) {
                 document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="container">${list.map(g => `<div class="menu-group-card" onclick="goToGroup('${g.id}')"><div><span class="icon">${g.icon}</span><span class="title">${g.title}</span></div><div class="desc">${g.desc}</div></div>`).join('')}</div>`;
             } else if (currentLevel === 1 && currentGroup) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => `${idx > 0 ? '<span class="separator">›</span>' : ''}${item.action ? `<a onclick="${item.action.toString().replace(/onclick="(.*)"/g, '$1')}">${item.label}</a>` : `<span class="current">${item.label}</span>`}`).join('')}</div><div class="container"><div class="action-buttons">${currentGroup.actions.map(a => `<button class="action-btn" onclick="goToAction('${a.id}')"><span class="icon">${a.icon}</span><span>${a.text}</span><span style="font-size:0.65rem;color:#999;">${a.desc}</span></button>`).join('')}</div><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div>`;
+                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => {
+                    let sep = idx > 0 ? '<span class="separator">›</span>' : '';
+                    if (item.action) {
+                        return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`;
+                    } else {
+                        return `${sep}<span class="current">${item.label}</span>`;
+                    }
+                }).join('')}</div><div class="container"><div class="action-buttons">${currentGroup.actions.map(a => `<button class="action-btn" onclick="goToAction('${a.id}')"><span class="icon">${a.icon}</span><span>${a.text}</span><span style="font-size:0.65rem;color:#999;">${a.desc}</span></button>`).join('')}</div><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div>`;
             } else if (currentLevel === 2 && currentAction) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => `${idx > 0 ? '<span class="separator">›</span>' : ''}${item.action ? `<a onclick="${item.action.toString().replace(/onclick="(.*)"/g, '$1')}">${item.label}</a>` : `<span class="current">${item.label}</span>`}`).join('')}</div><div class="container" id="content"></div>`;
+                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => {
+                    let sep = idx > 0 ? '<span class="separator">›</span>' : '';
+                    if (item.action) {
+                        return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`;
+                    } else {
+                        return `${sep}<span class="current">${item.label}</span>`;
+                    }
+                }).join('')}</div><div class="container" id="content"></div>`;
                 await loadActionContent(document.getElementById('content'), currentAction.id);
                 document.getElementById('content').innerHTML += `<button class="btn btn-secondary" onclick="goBack()" style="margin-top:16px;">🔙 Geri Dön</button>`;
             }
@@ -227,7 +252,7 @@
             if (r && r.data) {
                 let stoklar = r.data.filter(s => s.miktar > 0);
                 if (stoklar.length) {
-                    document.getElementById('musteriStokSonuc').innerHTML = `<div class="card"><div class="card-title">📦 ${ad} Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${stoklar.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`;
+                    document.getElementById('musteriStokSonuc').innerHTML = `<div class="card"><div class="card-title">📦 ${ad} Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${stoklar.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></td></div>`;
                 } else {
                     document.getElementById('musteriStokSonuc').innerHTML = `<div class="card">📦 ${ad} - Stokta palet bulunmuyor</div>`;
                 }
@@ -397,9 +422,9 @@
                             <div><strong>📥 TESLİM ALAN:</strong><br>${m.alan_adi}</div>
                         </div>
                         <table style="width:100%;border-collapse:collapse;">
-                            <thead><tr style="background:#2196F3;color:white;"><th>Stok Kodu</th><th>Palet Adı</th><th>Miktar</th></tr></thead>
-                            <tbody>${m.detaylar.map(d => `    <td>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}</td>`).join('')}
-                            <tr style="background:#f5f5f5;font-weight:bold;"><td colspan="2">Toplam<td style="text-align:center">${m.toplam_miktar} </tr>
+                            <thead><tr style="background:#2196F3;color:white;"><th>Stok Kodu</th><th>Palet Adı</th><th>Miktar</th></table></thead>
+                            <tbody>${m.detaylar.map(d => `    <tr>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}</td></tr>`).join('')}
+                            <tr style="background:#f5f5f5;font-weight:bold;"><td colspan="2">Toplam</td><td style="text-align:center">${m.toplam_miktar}</td></tr>
                             </tbody>
                         </table>
                         <div style="margin:20px 0;padding:12px;background:#f9f9f9;">
@@ -441,7 +466,7 @@
         async function kaydetKullanici() { let id = document.getElementById('kullanici_id_duzenle').value, ad = document.getElementById('kullanici_adi_duzenle').value, soyad = document.getElementById('ad_soyad_duzenle').value, s = document.getElementById('kullanici_sifre').value; if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; } if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; } let r; if (id) { let body = { id: parseInt(id), kullanici_adi: ad, ad_soyad: soyad }; if (s) body.sifre = s; r = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) }); } else { r = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) }); } if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); kapatKullaniciModal(); goBack(); } else showToast(r?.data?.hata || 'İşlem başarısız', 'error'); }
         async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz?')) return; let r = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Silme başarısız', 'error'); }
         
-        async function showPaletTipleri(div) { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></thead><tbody>${p.data.map(p => `      <td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id},'${p.stok_kodu}','${p.palet_adi}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td>`).join('')}</tbody> </table></div><div id="paletModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi"></div><input type="hidden" id="palet_id"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`; }
+        async function showPaletTipleri(div) { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></thead><tbody>${p.data.map(p => `      <td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id},'${p.stok_kodu}','${p.palet_adi}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody> </table></div><div id="paletModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi"></div><input type="hidden" id="palet_id"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`; }
         function showYeniPaletTipiModal() { document.getElementById('modalTitle').innerText = 'Yeni Palet Tipi'; document.getElementById('stok_kodu').value = ''; document.getElementById('palet_adi').value = ''; document.getElementById('palet_id').value = ''; document.getElementById('paletModal').style.display = 'flex'; }
         function duzenlePaletTipi(id, kod, ad) { document.getElementById('modalTitle').innerText = 'Palet Tipi Düzenle'; document.getElementById('stok_kodu').value = kod; document.getElementById('palet_adi').value = ad; document.getElementById('palet_id').value = id; document.getElementById('paletModal').style.display = 'flex'; }
         function kapatModal() { document.getElementById('paletModal').style.display = 'none'; }
