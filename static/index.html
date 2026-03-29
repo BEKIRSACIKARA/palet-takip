@@ -290,30 +290,100 @@
         function musteriSecAl(el) { document.querySelectorAll('#musteriListesiAl .musteri-item').forEach(i => i.classList.remove('selected')); el.classList.add('selected'); window.seciliMusteriIdAl = parseInt(el.getAttribute('data-id')); }
         
         async function transferIslem(tip) {
-            let aid = document.getElementById('alici_id')?.value, pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value;
-            if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
-            let body = { hareket_tipi: tip, palet_tipi_id: parseInt(pid), miktar: parseInt(m) };
-            if (aid) body.alici_id = parseInt(aid);
-            showToast('İşlem yapılıyor...', 'info');
-            let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-            if (r && r.status === 200 && r.data.success) {
-                showToast(r.data.mesaj, 'success');
-                if (r.data.makbuz_no) { setTimeout(() => showMakbuz(r.data.makbuz_no), 500); } else { goBack(); }
-            } else { showToast(r?.data?.hata || 'Transfer başarısız', 'error'); }
+    let aid = document.getElementById('alici_id')?.value;
+    let pid = document.getElementById('palet_tipi_id')?.value;
+    let m = document.getElementById('miktar')?.value;
+    
+    if (!pid || !m || m <= 0) {
+        showToast('Tüm alanları doldurun', 'error');
+        return;
+    }
+    
+    let body = {
+        hareket_tipi: tip,
+        palet_tipi_id: parseInt(pid),
+        miktar: parseInt(m)
+    };
+    if (aid) body.alici_id = parseInt(aid);
+    
+    showToast('İşlem yapılıyor...', 'info');
+    
+    let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+    
+    if (r && r.status === 200 && r.data.success) {
+        // BAŞARILI - Yeşil uyarı
+        showToast(r.data.mesaj, 'success');
+        
+        // Form alanlarını temizle
+        document.getElementById('miktar').value = '';
+        document.getElementById('palet_tipi_id').value = '';
+        if (document.getElementById('alici_id')) document.getElementById('alici_id').value = '';
+        
+        // Makbuz varsa göster
+        if (r.data.makbuz_no) {
+            setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
+        } else {
+            goBack();
         }
+    } else {
+        // HATALI - Kırmızı uyarı
+        showToast(r?.data?.hata || 'Transfer başarısız', 'error');
+    }
+}
         
         async function transferIslemMusteri(tip) {
-            let aid = tip === 'DAGITICI_MUSTERI' ? window.seciliMusteriIdVer : window.seciliMusteriIdAl;
-            let pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value;
-            if (!aid || !pid || !m || m <= 0) { showToast('Müşteri seçin ve tüm alanları doldurun', 'error'); return; }
-            let body = { hareket_tipi: tip, palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: parseInt(aid) };
-            showToast('İşlem yapılıyor...', 'info');
-            let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-            if (r && r.status === 200 && r.data.success) {
-                showToast(r.data.mesaj, 'success');
-                if (r.data.makbuz_no) { setTimeout(() => showMakbuz(r.data.makbuz_no), 500); } else { goBack(); }
-            } else { showToast(r?.data?.hata || 'Transfer başarısız', 'error'); }
+    let aid = tip === 'DAGITICI_MUSTERI' ? window.seciliMusteriIdVer : window.seciliMusteriIdAl;
+    let pid = document.getElementById('palet_tipi_id')?.value;
+    let m = document.getElementById('miktar')?.value;
+    
+    if (!aid) {
+        showToast('Lütfen bir müşteri seçin', 'error');
+        return;
+    }
+    if (!pid || !m || m <= 0) {
+        showToast('Tüm alanları doldurun', 'error');
+        return;
+    }
+    
+    let body = {
+        hareket_tipi: tip,
+        palet_tipi_id: parseInt(pid),
+        miktar: parseInt(m),
+        alici_id: parseInt(aid)
+    };
+    
+    showToast('İşlem yapılıyor...', 'info');
+    
+    let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
+    
+    if (r && r.status === 200 && r.data.success) {
+        // BAŞARILI - Yeşil uyarı
+        showToast(r.data.mesaj, 'success');
+        
+        // Form alanlarını temizle
+        document.getElementById('miktar').value = '';
+        document.getElementById('palet_tipi_id').value = '';
+        
+        // Seçili müşteriyi temizle
+        if (tip === 'DAGITICI_MUSTERI') {
+            window.seciliMusteriIdVer = null;
+            document.querySelectorAll('#musteriListesiVer .musteri-item').forEach(i => i.classList.remove('selected'));
+        } else {
+            window.seciliMusteriIdAl = null;
+            document.querySelectorAll('#musteriListesiAl .musteri-item').forEach(i => i.classList.remove('selected'));
         }
+        
+        // Makbuz varsa göster
+        if (r.data.makbuz_no) {
+            setTimeout(() => showMakbuz(r.data.makbuz_no), 500);
+        } else {
+            goBack();
+        }
+    } else {
+        // HATALI - Kırmızı uyarı
+        showToast(r?.data?.hata || 'Transfer başarısız', 'error');
+    }
+}
         
         async function showMakbuz(no) {
             let r = await apiCall(`/api/makbuz/${no}`);
