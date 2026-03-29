@@ -699,6 +699,169 @@ def rapor_export(current_user):
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=f'{rapor_tipi}_raporu.xlsx')
 
 
+@app.route('/api/rapor/pdf', methods=['POST'])
+@token_required
+def rapor_pdf(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    data = request.get_json()
+    rapor_tipi = data.get('rapor_tipi', 'hareketler')
+    baslangic = data.get('baslangic_tarihi')
+    bitis = data.get('bitis_tarihi')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
+    styles = getSampleStyleSheet()
+    story = []
+    
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, alignment=1, spaceAfter=20)
+    story.append(Paragraph("ULUDAĞ İÇECEK KONYA BÖLGE DEPO", title_style))
+    story.append(Paragraph(f"{rapor_tipi.upper()} RAPORU", title_style))
+    story.append(Spacer(1, 10))
+    
+    if baslangic and bitis:
+        date_text = f"Tarih Aralığı: {baslangic} - {bitis}"
+    else:
+        date_text = f"Oluşturma Tarihi: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}"
+    story.append(Paragraph(date_text, styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    if rapor_tipi == 'hareketler':
+        if baslangic and bitis:
+            cursor.execute('''
+                SELECT h.tarih, u.ad_soyad, h.hareket_tipi, 
+                       pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no
+                FROM hareketler h
+                JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+                JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+                WHERE DATE(h.tarih) BETWEEN %s AND %s
+                ORDER BY h.tarih DESC
+            ''', (baslangic, bitis))
+        else:
+            cursor.execute('''
+                SELECT h.tarih, u.ad_soyad, h.hareket_tipi, 
+                       pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no
+                FROM hareketler h
+                JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+                JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+                ORDER BY h.tarih DESC
+                LIMIT 500
+            ''')
+        
+        sonuc = cursor.fetchall()
+        data = [['Tarih', 'Yapan', 'İşlem Tipi', 'Stok Kodu', 'Palet Adı', 'Miktar', 'Makbuz No', 'Açıklama']]
+        for row in sonuc:
+            tip_text = {
+                'DEPO_DAGITICI': 'Depo→Dağıtıcı',
+                'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri',
+                'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı',
+                'DAGITICI_DEPO': 'Dağıtıcı→Depo',
+                'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'
+            }.get(row[2], row[2])
+            data.append([row[0][:16], row[1], tip_text, row[3], row[4], str(row[5]), row[7] or '-', (row[6][:40] + '...') if row[6] and len(row[6]) > 40 else (row[6] or '')])
+        
+        table = Table(data, colWidths=[80, 70, 80, 60, 70, 40, 90, 100])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        story.append(table)
+    
+    elif rapor_tipi == 'stoklar':
+        cursor.execute('SELECT pt.stok_kodu, pt.palet_adi, s.miktar FROM stoklar s JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id WHERE s.stok_sahibi_tip = %s', ('DEPO',))
+        depo_stok = cursor.fetchall()
+        story.append(Paragraph("📦 DEPO STOĞU", styles['Heading2']))
+        data = [['Stok Kodu', 'Palet Adı', 'Miktar']] + [[r[0], r[1], str(r[2])] for r in depo_stok]
+        table = Table(data, colWidths=[100, 200, 80])
+        table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
+        story.append(table)
+        story.append(Spacer(1, 20))
+        
+        cursor.execute('''
+            SELECT u.ad_soyad, pt.stok_kodu, pt.palet_adi, s.miktar
+            FROM stoklar s
+            JOIN kullanicilar u ON s.stok_sahibi_id = u.id
+            JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            WHERE s.stok_sahibi_tip = 'DAGITICI' AND s.miktar > 0
+            ORDER BY u.ad_soyad
+        ''')
+        dagitici_stok = cursor.fetchall()
+        story.append(Paragraph("🚚 DAĞITICI STOKLARI", styles['Heading2']))
+        data = [['Dağıtıcı', 'Stok Kodu', 'Palet Adı', 'Miktar']] + [[r[0], r[1], r[2], str(r[3])] for r in dagitici_stok]
+        table = Table(data, colWidths=[100, 80, 120, 60])
+        table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
+        story.append(table)
+        story.append(Spacer(1, 20))
+        
+        cursor.execute('''
+            SELECT m.musteri_kodu, m.musteri_adi, pt.stok_kodu, pt.palet_adi, s.miktar
+            FROM stoklar s
+            JOIN musteriler m ON s.stok_sahibi_id = m.id
+            JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
+            ORDER BY m.musteri_adi
+            LIMIT 100
+        ''')
+        musteri_stok = cursor.fetchall()
+        story.append(Paragraph("🏪 MÜŞTERİ STOKLARI", styles['Heading2']))
+        data = [['Müşteri', 'Stok Kodu', 'Palet Adı', 'Miktar']] + [[f"{r[0]} - {r[1]}", r[2], r[3], str(r[4])] for r in musteri_stok]
+        table = Table(data, colWidths=[150, 80, 100, 60])
+        table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
+        story.append(table)
+    
+    elif rapor_tipi == 'istatistik':
+        cursor.execute('''
+            SELECT u.ad_soyad, COUNT(*) as sayi
+            FROM hareketler h
+            JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+            WHERE u.tip = 'DAGITICI'
+            GROUP BY u.id
+            ORDER BY sayi DESC
+            LIMIT 10
+        ''')
+        en_cok = cursor.fetchall()
+        story.append(Paragraph("🏆 EN ÇOK TRANSFER YAPAN DAĞITICILAR", styles['Heading2']))
+        data = [['Dağıtıcı', 'Transfer Sayısı']] + [[r[0], str(r[1])] for r in en_cok]
+        table = Table(data, colWidths=[200, 100])
+        table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
+        story.append(table)
+        story.append(Spacer(1, 20))
+        
+        cursor.execute('''
+            SELECT pt.palet_adi, COUNT(*) as sayi, SUM(h.miktar) as toplam
+            FROM hareketler h
+            JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id
+            GROUP BY pt.id
+            ORDER BY sayi DESC
+        ''')
+        palet_kullanim = cursor.fetchall()
+        story.append(Paragraph("📦 EN ÇOK KULLANILAN PALET TİPLERİ", styles['Heading2']))
+        data = [['Palet Tipi', 'Kullanım Sayısı', 'Toplam Miktar']] + [[r[0], str(r[1]), str(r[2])] for r in palet_kullanim]
+        table = Table(data, colWidths=[150, 100, 100])
+        table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
+        story.append(table)
+    
+    cursor.close()
+    conn.close()
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'{rapor_tipi}_raporu_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    )
+
+
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
