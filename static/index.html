@@ -203,7 +203,7 @@
 
         async function showDepoStok(div) { let r = await apiCall('/api/stok?tip=DEPO&id=0'); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Depo Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; }
         async function showKendiStok(div) { let r = await apiCall(`/api/stok?tip=DAGITICI&id=${currentUser.id}`); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Kendi Stoğunuz</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></td></div>`; }
-        async function showDagiticiStoklar(div) { let r = await apiCall('/api/dagitici_listesi'); if (r && r.data && r.data.length) { div.innerHTML = ''; for (let d of r.data) { let s = await apiCall(`/api/stok?tip=DAGITICI&id=${d.id}`); if (s && s.data) div.innerHTML += `<div class="card"><div class="card-title">${d.ad_soyad} (${d.kullanici_adi})</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${s.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; } } else div.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor.</div>'; }
+        async function showDagiticiStoklar(div) { let r = await apiCall('/api/dagitici_listesi'); if (r && r.data && r.data.length) { div.innerHTML = ''; for (let d of r.data) { let s = await apiCall(`/api/stok?tip=DAGITICI&id=${d.id}`); if (s && s.data) div.innerHTML += `<div class="card"><div class="card-title">${d.ad_soyad} (${d.kullanici_adi})</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${s.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></td></div>`; } } else div.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor.</div>'; }
         
         async function showMusteriStoklar(div) {
             let r = await apiCall('/api/musteri_stoklari');
@@ -227,7 +227,7 @@
             if (r && r.data) {
                 let stoklar = r.data.filter(s => s.miktar > 0);
                 if (stoklar.length) {
-                    document.getElementById('musteriStokSonuc').innerHTML = `<div class="card"><div class="card-title">📦 ${ad} Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${stoklar.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></tr></div>`;
+                    document.getElementById('musteriStokSonuc').innerHTML = `<div class="card"><div class="card-title">📦 ${ad} Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${stoklar.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`;
                 } else {
                     document.getElementById('musteriStokSonuc').innerHTML = `<div class="card">📦 ${ad} - Stokta palet bulunmuyor</div>`;
                 }
@@ -263,20 +263,12 @@
         async function depoMusteriTransfer(tip) {
             let pid = document.getElementById('palet_tipi_id')?.value;
             let m = document.getElementById('miktar')?.value;
-            
-            if (!pid || !m || m <= 0) {
-                showToast('Tüm alanları doldurun', 'error');
-                return;
-            }
-            
+            if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
             let body = tip === 'DEPO_DAGITICI' 
                 ? { hareket_tipi: 'DEPO_DAGITICI', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId }
                 : { hareket_tipi: 'DAGITICI_DEPO', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId };
-            
             showToast('İşlem yapılıyor...', 'info');
-            
             let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-            
             if (r && r.status === 200 && r.data.success) {
                 showToast(r.data.mesaj, 'success');
                 document.getElementById('miktar').value = '';
@@ -348,7 +340,6 @@
             let aid = tip === 'DAGITICI_MUSTERI' ? window.seciliMusteriIdVer : window.seciliMusteriIdAl;
             let pid = document.getElementById('palet_tipi_id')?.value;
             let m = document.getElementById('miktar')?.value;
-            
             if (!aid) {
                 showToast('Lütfen bir müşteri seçin', 'error');
                 return;
@@ -357,18 +348,14 @@
                 showToast('Tüm alanları doldurun', 'error');
                 return;
             }
-            
             let body = {
                 hareket_tipi: tip,
                 palet_tipi_id: parseInt(pid),
                 miktar: parseInt(m),
                 alici_id: parseInt(aid)
             };
-            
             showToast('İşlem yapılıyor...', 'info');
-            
             let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
-            
             if (r && r.status === 200 && r.data.success) {
                 showToast(r.data.mesaj, 'success');
                 document.getElementById('miktar').value = '';
@@ -411,7 +398,7 @@
                         </div>
                         <table style="width:100%;border-collapse:collapse;">
                             <thead><tr style="background:#2196F3;color:white;"><th>Stok Kodu</th><th>Palet Adı</th><th>Miktar</th></tr></thead>
-                            <tbody>${m.detaylar.map(d => `    <td>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}<td>`).join('')}
+                            <tbody>${m.detaylar.map(d => `    <td>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}</td>`).join('')}
                             <tr style="background:#f5f5f5;font-weight:bold;"><td colspan="2">Toplam<td style="text-align:center">${m.toplam_miktar} </tr>
                             </tbody>
                         </table>
