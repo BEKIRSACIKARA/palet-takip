@@ -426,7 +426,7 @@ def transfer_yap(current_user):
 
 @app.route('/api/makbuz/<makbuz_no>', methods=['GET'])
 @token_required
-def makbuz_goster(makbuz_no):
+def makbuz_goster(current_user, makbuz_no): # <-- Sadece current_user eklendi
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM makbuzlar WHERE makbuz_no = %s", (makbuz_no,))
@@ -444,7 +444,7 @@ def makbuz_goster(makbuz_no):
 
 @app.route('/api/makbuz/pdf/<makbuz_no>', methods=['GET'])
 @token_required
-def makbuz_pdf(makbuz_no):
+def makbuz_pdf(current_user, makbuz_no): # <-- Sadece current_user eklendi
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM makbuzlar WHERE makbuz_no = %s", (makbuz_no,))
