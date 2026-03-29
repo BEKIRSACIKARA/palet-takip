@@ -258,7 +258,6 @@ def get_tum_musteriler(current_user):
 @app.route('/api/musteri_stoklari', methods=['GET'])
 @token_required
 def get_musteri_stoklari(current_user):
-    """Sadece stokta palet olan müşterileri ve stokları getir"""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -273,25 +272,13 @@ def get_musteri_stoklari(current_user):
     sonuc = cursor.fetchall()
     cursor.close()
     conn.close()
-    
     musteriler_dict = {}
     for row in sonuc:
         mid = row[0]
         if mid not in musteriler_dict:
-            musteriler_dict[mid] = {
-                'id': mid,
-                'musteri_kodu': row[1],
-                'musteri_adi': row[2],
-                'tabela_adi': row[3],
-                'stoklar': []
-            }
+            musteriler_dict[mid] = {'id': mid, 'musteri_kodu': row[1], 'musteri_adi': row[2], 'tabela_adi': row[3], 'stoklar': []}
         if row[7] > 0:
-            musteriler_dict[mid]['stoklar'].append({
-                'palet_id': row[4],
-                'stok_kodu': row[5],
-                'palet_adi': row[6],
-                'miktar': row[7]
-            })
+            musteriler_dict[mid]['stoklar'].append({'palet_id': row[4], 'stok_kodu': row[5], 'palet_adi': row[6], 'miktar': row[7]})
     return jsonify(list(musteriler_dict.values()))
 
 
@@ -472,7 +459,6 @@ def makbuz_goster(makbuz_no):
 @app.route('/api/makbuz/pdf/<makbuz_no>', methods=['GET'])
 @token_required
 def makbuz_pdf(makbuz_no):
-    """Makbuzu PDF olarak indir"""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM makbuzlar WHERE makbuz_no = %s", (makbuz_no,))
@@ -485,35 +471,21 @@ def makbuz_pdf(makbuz_no):
     detaylar = cursor.fetchall()
     cursor.close()
     conn.close()
-    
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []
-    
     title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, alignment=1, spaceAfter=20)
     story.append(Paragraph("ULUDAĞ İÇECEK", title_style))
     story.append(Paragraph("KONYA BÖLGE DEPO", title_style))
     story.append(Paragraph("PALET İŞLEM MAKBUZU", title_style))
     story.append(Spacer(1, 20))
-    
     tip_text = {'DEPO_DAGITICI': 'Depo → Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı → Müşteri', 'MUSTERI_DAGITICI': 'Müşteri → Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı → Depo'}.get(makbuz[3], makbuz[3])
-    
-    data = [
-        ['Makbuz No:', makbuz[1]],
-        ['Tarih:', makbuz[2]],
-        ['İşlem Türü:', tip_text],
-        ['Teslim Eden:', makbuz[6]],
-        ['Teslim Alan:', makbuz[9]],
-        ['Toplam Miktar:', str(makbuz[10])],
-        ['Açıklama:', makbuz[11]],
-        ['İşlemi Yapan:', makbuz[13]]
-    ]
+    data = [['Makbuz No:', makbuz[1]], ['Tarih:', makbuz[2]], ['İşlem Türü:', tip_text], ['Teslim Eden:', makbuz[6]], ['Teslim Alan:', makbuz[9]], ['Toplam Miktar:', str(makbuz[10])], ['Açıklama:', makbuz[11]], ['İşlemi Yapan:', makbuz[13]]]
     table = Table(data, colWidths=[100, 300])
     table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
     story.append(table)
     story.append(Spacer(1, 20))
-    
     detay_data = [['Stok Kodu', 'Palet Adı', 'Miktar']] + [[d[0], d[1], str(d[2])] for d in detaylar]
     detay_table = Table(detay_data, colWidths=[100, 200, 80])
     detay_table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.grey), ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white)]))
@@ -521,7 +493,6 @@ def makbuz_pdf(makbuz_no):
     story.append(Spacer(1, 30))
     story.append(Paragraph("_________________________", styles['Normal']))
     story.append(Paragraph("Yetkili İmza", styles['Normal']))
-    
     doc.build(story)
     buffer.seek(0)
     return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name=f'makbuz_{makbuz_no}.pdf')
