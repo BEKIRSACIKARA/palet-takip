@@ -702,8 +702,10 @@ def rapor_export(current_user):
 @app.route('/api/rapor/pdf', methods=['POST'])
 @token_required
 def rapor_pdf(current_user):
+    """PDF Rapor Oluştur"""
     if current_user['tip'] != 'DEPOCU':
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
     data = request.get_json()
     rapor_tipi = data.get('rapor_tipi', 'hareketler')
     baslangic = data.get('baslangic_tarihi')
@@ -944,6 +946,39 @@ def yedekle(current_user):
     conn.close()
     buffer.seek(0)
     return send_file(buffer, mimetype='application/zip', as_attachment=True, download_name=f'palet_takip_yedek_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
+
+
+@app.route('/api/yedekleme_ayarla', methods=['POST'])
+@token_required
+def yedekleme_ayarla(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    data = request.get_json()
+    aktif, periyot, saat = data.get('aktif', False), data.get('periyot', 'gunluk'), data.get('saat', '03:00')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO ayarlar (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", ('yedekleme_aktif', str(aktif)))
+    cursor.execute("INSERT INTO ayarlar (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", ('yedekleme_periyot', periyot))
+    cursor.execute("INSERT INTO ayarlar (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", ('yedekleme_saat', saat))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({'success': True, 'mesaj': f'Otomatik yedekleme {"açıldı" if aktif else "kapatıldı"}. Periyot: {periyot}, Saat: {saat}'})
+
+
+@app.route('/api/yedekleme_ayarlari', methods=['GET'])
+@token_required
+def yedekleme_ayarlari(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT key, value FROM ayarlar WHERE key LIKE 'yedekleme_%'")
+    sonuc = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    ayarlar = {row[0].replace('yedekleme_', ''): row[1] for row in sonuc}
+    return jsonify({'aktif': ayarlar.get('aktif', 'False') == 'True', 'periyot': ayarlar.get('periyot', 'gunluk'), 'saat': ayarlar.get('saat', '03:00')})
 
 
 if __name__ == '__main__':
