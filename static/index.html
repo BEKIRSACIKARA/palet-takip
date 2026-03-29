@@ -85,44 +85,44 @@
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
         const groups = {
             depocu: [
-                { id: "palet_islemleri", title: "🏭 PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
+                { id: "palet_islemleri", title: "PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
                     { id: "depoDagiticiTransfer", icon: "➡️", text: "Depo → Dağıtıcı", desc: "Depodan dağıtıcıya palet transferi" },
                     { id: "dagiticiIade", icon: "⬅️", text: "Dağıtıcıdan İade Al", desc: "Dağıtıcıdan depoya iade" },
                     { id: "depoMusteri", icon: "🏪", text: "Depo → Müşteri", desc: "Depodan müşteriye doğrudan palet transferi" }
                 ]},
-                { id: "stoklar", title: "📊 STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
+                { id: "stoklar", title: "STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
                     { id: "depoStok", icon: "📦", text: "Depo Stoğu", desc: "Depo stok durumu" },
                     { id: "dagiticiStoklar", icon: "🚚", text: "Dağıtıcı Stoğu", desc: "Tüm dağıtıcıların stokları" },
                     { id: "musteriStoklar", icon: "🏪", text: "Müşteri Stoğu", desc: "Sadece stoklu müşteriler" }
                 ]},
-                { id: "kullanici_islemleri", title: "👥 KULLANICI İŞLEMLERİ", icon: "👥", desc: "Kullanıcı ve müşteri yönetimi", actions: [
+                { id: "kullanici_islemleri", title: "KULLANICI İŞLEMLERİ", icon: "👥", desc: "Kullanıcı ve müşteri yönetimi", actions: [
                     { id: "kullaniciYonetim", icon: "👥", text: "Kullanıcılar", desc: "Dağıtıcıları yönet" },
                     { id: "musteriEkle", icon: "👤", text: "Müşteri Ekle", desc: "Yeni müşteri ekle" }
                 ]},
-                { id: "veri_guncelleme", title: "📂 VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
+                { id: "veri_guncelleme", title: "VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
                     { id: "excelYukle", icon: "📂", text: "Müşteri Verilerini Yükle", desc: "Excel'den müşteri yükle" },
                     { id: "excelExport", icon: "📤", text: "Verileri Dışarı Aktar", desc: "Excel'e veri aktar" }
                 ]},
-                { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
+                { id: "duzenleme", title: "STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
                     { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
                     { id: "paletTipleri", icon: "🏷️", text: "Palet Tip Ekle Sil", desc: "Palet tiplerini yönet" },
                     { id: "yedekleme", icon: "💾", text: "Yedekleme", desc: "Veri yedekleme" }
                 ]},
-                { id: "hareketler", title: "📋 HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
+                { id: "hareketler", title: "HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
                     { id: "hareketler", icon: "📋", text: "Hareketler", desc: "Tüm hareketleri gör" }
                 ]}
             ],
             dagitici: [
-                { id: "stoklar", title: "📊 STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
+                { id: "stoklar", title: "STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
                     { id: "kendiStok", icon: "📦", text: "Kendi Stoğum", desc: "Kendi stok durumunuz" },
                     { id: "musteriStoklar", icon: "🏪", text: "Müşteri Stoğu", desc: "Sadece stoklu müşteriler" }
                 ]},
-                { id: "palet_islemleri", title: "🏭 PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
+                { id: "palet_islemleri", title: "PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
                     { id: "musteriyeVer", icon: "➡️", text: "Müşteriye Ver", desc: "Müşteriye palet ver" },
                     { id: "musteridenAl", icon: "⬅️", text: "Müşteriden Al", desc: "Müşteriden palet al" }
                 ]},
-                { id: "hareketler", title: "📋 HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
+                { id: "hareketler", title: "HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
                     { id: "hareketler", icon: "📋", text: "Hareketlerim", desc: "Kendi hareketlerinizi gör" }
                 ]}
             ]
