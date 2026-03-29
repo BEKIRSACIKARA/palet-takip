@@ -126,7 +126,7 @@ def makbuz_no_olustur():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT MAX(CAST(SUBSTRING(makbuz_no, 4) AS INTEGER)) FROM makbuzlar")
+        cursor.execute("SELECT MAX(CAST(SUBSTR(makbuz_no, 4) AS INTEGER)) FROM makbuzlar")
         son_makbuz = cursor.fetchone()[0]
     except:
         son_makbuz = None
