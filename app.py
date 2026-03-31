@@ -322,6 +322,45 @@ def get_stok(current_user):
     cursor.close()
     conn.close()
     return jsonify([{'palet_id': p[0], 'stok_kodu': p[1], 'palet_adi': p[2], 'miktar': p[3]} for p in sonuc])
+@app.route('/api/musteri_stoklari', methods=['GET'])
+@token_required
+def get_musteri_stoklari(current_user):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Sadece elinde 0'dan fazla palet olan (stoklu) müşterileri ve palet tiplerini çekiyoruz
+    cursor.execute('''
+        SELECT m.id, m.musteri_kodu, m.musteri_adi, m.tabela_adi, 
+               pt.stok_kodu, pt.palet_adi, s.miktar 
+        FROM stoklar s 
+        JOIN musteriler m ON s.stok_sahibi_id = m.id 
+        JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id 
+        WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0 
+        ORDER BY m.musteri_adi
+    ''')
+    sonuc = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Arayüzün beklediği formata (JSON) uygun hale getiriyoruz
+    musteriler = {}
+    for row in sonuc:
+        m_id = row[0]
+        if m_id not in musteriler:
+            musteriler[m_id] = {
+                'id': m_id,
+                'musteri_kodu': row[1],
+                'musteri_adi': row[2],
+                'tabela_adi': row[3],
+                'stoklar': []
+            }
+        musteriler[m_id]['stoklar'].append({
+            'stok_kodu': row[4],
+            'palet_adi': row[5],
+            'miktar': row[6]
+        })
+        
+    return jsonify(list(musteriler.values()))
 
 
 @app.route('/api/transfer', methods=['POST'])
