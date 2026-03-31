@@ -936,6 +936,34 @@ def yedekleme_ayarlari(current_user):
     conn.close()
     ayarlar = {row[0].replace('yedekleme_', ''): row[1] for row in sonuc}
     return jsonify({'aktif': ayarlar.get('aktif', 'False') == 'True', 'periyot': ayarlar.get('periyot', 'gunluk'), 'saat': ayarlar.get('saat', '03:00')})
+@app.route('/api/hareketleri_sifirla', methods=['POST'])
+@token_required
+def hareketleri_sifirla(current_user):
+    # Sadece Ana Depocu bu işlemi yapabilir
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # 1. Makbuz detaylarını ve makbuzları sil
+        cursor.execute("DELETE FROM makbuz_detaylari")
+        cursor.execute("DELETE FROM makbuzlar")
+        
+        # 2. Tüm hareket geçmişini sil
+        cursor.execute("DELETE FROM hareketler")
+        
+        # 3. Herkesin (Depo, Dağıtıcı, Müşteri) stoklarını 0'la
+        cursor.execute("UPDATE stoklar SET miktar = 0")
+
+        conn.commit()
+        return jsonify({'success': True, 'mesaj': 'Tüm hareketler, makbuzlar ve stoklar başarıyla sıfırlandı!'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'hata': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 if __name__ == '__main__':
