@@ -1003,6 +1003,109 @@ def hareketleri_sifirla(current_user):
     finally:
         cursor.close()
         conn.close()
+@app.route('/api/stok_excel_yukle', methods=['POST'])
+@token_required
+def stok_excel_yukle(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    
+    if 'file' not in request.files:
+        return jsonify({'hata': 'Dosya bulunamadı'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'hata': 'Dosya seçilmedi'}), 400
+        
+    try:
+        workbook = openpyxl.load_workbook(file)
+        sheet = workbook.active
+    except Exception as e:
+        return jsonify({'hata': f'Excel okunamadı: {str(e)}'}), 400
+        
+    def std_text(text):
+        if text is None: return ""
+        return str(text).strip().upper().replace('İ', 'I').replace('Ş', 'S').replace('Ğ', 'G').replace('Ü', 'U').replace('Ö', 'O').replace('Ç', 'C')
+
+    headers = [std_text(sheet.cell(row=1, column=col).value) for col in range(1, sheet.max_column + 1)]
+    required_columns = ['STOK SAHIBI', 'STOK KODU', 'MIKTAR']
+    
+    for col in required_columns:
+        if col not in headers:
+            return jsonify({'hata': f"'{col}' sütunu bulunamadı. Lütfen dışa aktarılan 'Stoklar' rapor formatını bozmadığınızdan emin olun."}), 400
+            
+    col_indices = {h: i+1 for i, h in enumerate(headers)}
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT stok_kodu, id FROM palet_tipleri')
+    paletler = {std_text(p[0]): p[1] for p in cursor.fetchall()}
+    
+    cursor.execute("SELECT ad_soyad, id FROM kullanicilar WHERE tip = 'DAGITICI'")
+    dagiticilar = {std_text(d[0]): d[1] for d in cursor.fetchall()}
+    
+    cursor.execute('SELECT musteri_kodu, id FROM musteriler')
+    musteriler = {std_text(m[0]): m[1] for m in cursor.fetchall()}
+    
+    guncellenen = 0
+    hatalar = []
+    
+    for row in range(2, sheet.max_row + 1):
+        sahip_str_raw = str(sheet.cell(row=row, column=col_indices['STOK SAHIBI']).value or '').strip()
+        sahip_str = std_text(sahip_str_raw)
+        palet_kodu_raw = str(sheet.cell(row=row, column=col_indices['STOK KODU']).value or '').strip()
+        palet_kodu = std_text(palet_kodu_raw)
+        miktar_str = sheet.cell(row=row, column=col_indices['MIKTAR']).value
+        
+        if not sahip_str or not palet_kodu or miktar_str is None:
+            continue
+            
+        try:
+            miktar = int(miktar_str)
+        except ValueError:
+            hatalar.append(f"Satır {row}: Miktar sayı formatında değil")
+            continue
+            
+        if palet_kodu not in paletler:
+            hatalar.append(f"Satır {row}: Geçersiz palet kodu ({palet_kodu_raw})")
+            continue
+            
+        palet_tipi_id = paletler[palet_kodu]
+        
+        if sahip_str == 'DEPO':
+            sahip_tipi_db = 'DEPO'
+            stok_sahibi_id = 0
+        elif " - " in sahip_str_raw: 
+            musteri_kodu_raw = sahip_str_raw.split(" - ")[0].strip()
+            musteri_kodu = std_text(musteri_kodu_raw)
+            if musteri_kodu not in musteriler:
+                hatalar.append(f"Satır {row}: Müşteri bulunamadı ({musteri_kodu_raw})")
+                continue
+            sahip_tipi_db = 'MUSTERI'
+            stok_sahibi_id = musteriler[musteri_kodu]
+        else: 
+            if sahip_str not in dagiticilar:
+                hatalar.append(f"Satır {row}: Dağıtıcı bulunamadı ({sahip_str_raw})")
+                continue
+            sahip_tipi_db = 'DAGITICI'
+            stok_sahibi_id = dagiticilar[sahip_str]
+            
+        try:
+            cursor.execute("SELECT id FROM stoklar WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s", (sahip_tipi_db, stok_sahibi_id, palet_tipi_id))
+            mevcut = cursor.fetchone()
+            if mevcut:
+                cursor.execute("UPDATE stoklar SET miktar = %s WHERE id = %s", (miktar, mevcut[0]))
+            else:
+                cursor.execute("INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar) VALUES (%s, %s, %s, %s)", (sahip_tipi_db, stok_sahibi_id, palet_tipi_id, miktar))
+            guncellenen += 1
+        except Exception as e:
+            hatalar.append(f"Satır {row}: Veritabanı hatası - {str(e)}")
+            
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'success': True, 'guncellenen': guncellenen, 'hatalar': hatalar, 'mesaj': f'{guncellenen} stok kaydı başarıyla eşitlendi.'})
 
 
 if __name__ == '__main__':
