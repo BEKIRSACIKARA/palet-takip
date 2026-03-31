@@ -108,8 +108,8 @@
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
                     { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
                     { id: "paletTipleri", icon: "🏷️", text: "Palet Tip Ekle Sil", desc: "Palet tiplerini yönet" },
-                    { id: "yedekleme", icon: "💾", text: "Yedekleme", desc: "Veri yedekleme" }
-                ]},
+                    { id: "yedekleme", icon: "💾", text: "Yedekleme", desc: "Veri yedekleme" },
+{ id: "sistemiSifirla", icon: "⚠️", text: "Sistemi Sıfırla", desc: "Hareket ve stokları temizle" }]},
                 { id: "hareketler", title: "📋 HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
                     { id: "hareketler", icon: "📋", text: "Hareketler", desc: "Tüm hareketleri gör" }
                 ]}
@@ -204,7 +204,8 @@
             else if (aid === 'excelExport') showExcelExport(div);
             else if (aid === 'raporlar') await showRaporlar(div);
             else if (aid === 'depoStokDuzenle') showDepoStokDuzenle(div);
-            else if (aid === 'yedekleme') await showYedekleme(div);
+            else if (aid === 'yedekleme') await showYedekleme(div); // Bu satır zaten var
+            else if (aid === 'sistemiSifirla') showSistemiSifirla(div); // BUNU EKLE
             else if (aid === 'hareketler') await showHareketler(div);
         }
 
@@ -477,7 +478,34 @@
         async function showHareketler(div) { let d = await apiCall('/api/dagitici_listesi'), p = await apiCall('/api/palet_tipleri'); div.innerHTML = `<div class="card"><div class="card-title">🔍 Hareket Filtreleri</div><div class="form-group"><label>Dağıtıcı</label><select id="filtre_dagitici"><option value="">Tümü</option>${d?.data?.map(x => `<option value="${x.id}">${x.ad_soyad}</option>`).join('') || ''}</select></div><div class="form-group"><label>Palet Tipi</label><select id="filtre_palet"><option value="">Tümü</option>${p?.data?.map(x => `<option value="${x.id}">${x.stok_kodu} - ${x.palet_adi}</option>`).join('') || ''}</select></div><div class="form-group"><label>Başlangıç</label><input type="date" id="filtre_baslangic"></div><div class="form-group"><label>Bitiş</label><input type="date" id="filtre_bitis"></div><button class="btn" onclick="filtreliHareketleriGoster()">🔍 Filtrele</button><button class="btn btn-secondary" onclick="filtreleriTemizle()">🗑️ Temizle</button></div><div id="hareketListesi"><div class="loading">Yükleniyor...</div></div>`; await filtreliHareketleriGoster(); }
         async function filtreliHareketleriGoster() { let did = document.getElementById('filtre_dagitici')?.value, pid = document.getElementById('filtre_palet')?.value, b = document.getElementById('filtre_baslangic')?.value, e = document.getElementById('filtre_bitis')?.value, body = {}; if (did) body.dagitici_id = parseInt(did); if (pid) body.palet_tipi_id = parseInt(pid); if (b) body.baslangic_tarihi = b; if (e) body.bitis_tarihi = e; let d = document.getElementById('hareketListesi'); d.innerHTML = '<div class="loading">Yükleniyor...</div>'; let r = await apiCall('/api/hareketler_filtreli', { method: 'POST', body: JSON.stringify(body) }); if (r && r.data && r.data.length) { let html = `<div class="card"><div class="card-title">📋 Hareket Geçmişi (${r.data.length} kayıt)</div>`; for (let h of r.data) html += `<div class="hareket-item"><div class="tarih">📅 ${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.ilgili_dagitici !== '-' ? `<div class="detay">🚚 ${h.ilgili_dagitici}</div>` : ''}${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}${h.makbuz_no ? `<div class="detay">🧾 Makbuz: <span class="makbuz-link" onclick="showMakbuz('${h.makbuz_no}')">${h.makbuz_no}</span></div>` : ''}</div>`; html += '</div>'; d.innerHTML = html; } else d.innerHTML = '<div class="card">📭 Bu filtrelerde hareket yok</div>'; }
         function filtreleriTemizle() { if (document.getElementById('filtre_dagitici')) document.getElementById('filtre_dagitici').value = ''; if (document.getElementById('filtre_palet')) document.getElementById('filtre_palet').value = ''; if (document.getElementById('filtre_baslangic')) document.getElementById('filtre_baslangic').value = ''; if (document.getElementById('filtre_bitis')) document.getElementById('filtre_bitis').value = ''; filtreliHareketleriGoster(); }
-        
+                function showSistemiSifirla(div) {
+            div.innerHTML = `
+                <div class="card" style="border-left: 4px solid #f44336;">
+                    <div class="card-title" style="color: #f44336;">⚠️ Sistemi Sıfırla (Tehlikeli İşlem)</div>
+                    <p style="margin-bottom: 15px; font-size: 0.9rem;">Bu işlem bugüne kadar yapılmış <strong>tüm palet transferlerini, hareket geçmişini, makbuzları ve mevcut stokları</strong> kalıcı olarak siler ve her şeyi sıfırlar. Sadece test verilerini temizlemek için kullanın.</p>
+                    <p style="margin-bottom: 15px; font-size: 0.9rem; color: #f44336;"><strong>Not:</strong> Kullanıcılar, müşteriler ve palet tipleri silinmez.</p>
+                    <button class="btn" style="background: #f44336;" onclick="sistemiSifirlaTetikle()">🚨 Tüm Hareketleri ve Stokları Sıfırla</button>
+                </div>
+            `;
+        }
+
+        async function sistemiSifirlaTetikle() {
+            let onay = prompt("Tüm hareketleri ve stokları silmek istediğinize emin misiniz? Bu işlem geri alınamaz! Onaylamak için büyük harflerle 'SİL' yazın.");
+            if (onay !== 'SİL') {
+                showToast('Sıfırlama işlemi iptal edildi', 'info');
+                return;
+            }
+
+            showToast('Sistem sıfırlanıyor...', 'info');
+            let r = await apiCall('/api/hareketleri_sifirla', { method: 'POST' });
+            if (r && r.status === 200 && r.data.success) {
+                showToast(r.data.mesaj, 'success');
+                setTimeout(() => goToMainMenu(), 2000);
+            } else {
+                showToast(r?.data?.hata || 'Sıfırlama başarısız', 'error');
+            }
+        }
+
         let st = localStorage.getItem('token'), su = localStorage.getItem('user');
         if (st && su) { token = st; currentUser = JSON.parse(su); goToMainMenu(); } else renderLogin();
     </script>
