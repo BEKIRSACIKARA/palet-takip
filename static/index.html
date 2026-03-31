@@ -102,7 +102,7 @@
                 ]},
                 { id: "veri_guncelleme", title: "📂 VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
                     { id: "excelYukle", icon: "📂", text: "Müşteri Verilerini Yükle", desc: "Excel'den müşteri yükle" },
-                    { id: "excelExport", icon: "📤", text: "Verileri Dışarı Aktar", desc: "Excel'e veri aktar" }
+                    { id: "excelExport", icon: "📤", text: "Verileri Dışarı Aktar", desc: "Excel'e veri aktar" },{ id: "stokExcelYukle", icon: "📦", text: "Toplu Stok Yükle", desc: "Excel'den toplu stok gir" }
                 ]},
                 { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
@@ -204,6 +204,7 @@
             else if (aid === 'excelExport') showExcelExport(div);
             else if (aid === 'raporlar') await showRaporlar(div);
             else if (aid === 'depoStokDuzenle') showDepoStokDuzenle(div);
+            else if (aid === 'stokExcelYukle') showStokExcelYukle(div);
             else if (aid === 'yedekleme') await showYedekleme(div); // Bu satır zaten var
             else if (aid === 'sistemiSifirla') showSistemiSifirla(div); // BUNU EKLE
             else if (aid === 'hareketler') await showHareketler(div);
@@ -503,6 +504,69 @@
                 setTimeout(() => goToMainMenu(), 2000);
             } else {
                 showToast(r?.data?.hata || 'Sıfırlama başarısız', 'error');
+            }
+        }
+        function showStokExcelYukle(div) {
+            div.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📦 Toplu Stok Verisi Yükle (Eşitleme)</div>
+                    <div class="form-group">
+                        <label>Excel Dosyası (.xlsx, .xls)</label>
+                        <input type="file" id="stokExcelFile" accept=".xlsx,.xls">
+                    </div>
+                    <div class="form-group">
+                        <div style="background:#e3f2fd;padding:12px;border-radius:8px;font-size:0.85rem;color:#1976D2;">
+                            <strong style="font-size:0.95rem;">💡 Akıllı Eşitleme (Dışa Aktar -> Düzenle -> İçeri Aktar)</strong><br><br>
+                            "Veri Güncelleme -> Verileri Dışarı Aktar -> Stoklar" bölümünden indirdiğiniz <b>stoklar_raporu.xlsx</b> dosyasını bilgisayarınızda açın, "Miktar" sütunundaki sayıları güncelleyin ve kaydedip <b>doğrudan buraya yükleyin.</b><br><br>
+                            <strong style="font-size:0.9rem;">Beklenen Sütunlar (Formatı Bozmayın):</strong><br>
+                            1. <b>Stok Sahibi</b> (Sistemden çıktığı gibi: DEPO, Hakan Kumru, KON001 - Bakkal vb.)<br>
+                            2. <b>Stok Kodu</b> (P001, P002 vb.)<br>
+                            3. <b>Palet Adı</b> (Bilgi amaçlıdır, değiştirebilirsiniz)<br>
+                            4. <b>Miktar</b> (Güncel sayım sonucu)<br>
+                            <br><span style="color:#f44336;"><b>Not:</b> Yüklediğiniz miktarlar mevcut stoğun üstüne eklenmez, direkt Excel'deki rakama <b>eşitlenir</b>.</span>
+                        </div>
+                    </div>
+                    <button class="btn" style="background:#4caf50;" onclick="stokExcelYukleIslem()">📥 Stokları İçeri Aktar</button>
+                    <div id="stokExcelSonuc" style="margin-top:16px;"></div>
+                </div>
+            `;
+        }
+
+        async function stokExcelYukleIslem() {
+            let f = document.getElementById('stokExcelFile').files[0];
+            if (!f) { showToast('Lütfen bir Excel dosyası seçin', 'error'); return; }
+            
+            let fd = new FormData();
+            fd.append('file', f);
+            
+            let d = document.getElementById('stokExcelSonuc');
+            d.innerHTML = '<div class="loading">Yükleniyor... Lütfen bekleyin.</div>';
+            
+            try {
+                let r = await fetch(`${API_URL}/api/stok_excel_yukle`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: fd
+                });
+                let res = await r.json();
+                
+                if (res.success) {
+                    let html = `<div style="background:#4caf50;color:white;padding:12px;border-radius:8px;">✅ ${res.mesaj}</div>`;
+                    if (res.hatalar && res.hatalar.length) {
+                        html += `<div style="margin-top:12px;background:#ffebee;color:#c62828;padding:12px;border-radius:8px;max-height:200px;overflow-y:auto;">
+                            <strong>⚠️ Atlanan Satırlar / Hatalar:</strong><br>
+                            ${res.hatalar.map(h => `• ${h}`).join('<br>')}
+                        </div>`;
+                    }
+                    d.innerHTML = html;
+                    showToast('İşlem tamamlandı');
+                } else {
+                    d.innerHTML = `<div style="background:#f44336;color:white;padding:12px;border-radius:8px;">❌ ${res.hata}</div>`;
+                    showToast('Yükleme başarısız', 'error');
+                }
+            } catch (e) {
+                d.innerHTML = `<div style="background:#f44336;color:white;padding:12px;border-radius:8px;">❌ Sistemsel Hata: ${e.message}</div>`;
+                showToast('Bağlantı hatası', 'error');
             }
         }
 
