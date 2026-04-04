@@ -86,6 +86,10 @@
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
         const groups = {
             depocu: [
+                { id: "pano", title: "📊 DİJİTAL PANO (DASHBOARD)", icon: "📊", desc: "Canlı operasyonel veriler", actions: [
+    { id: "canliPano", icon: "🚀", text: "Canlı İzleme Panosu", desc: "Anlık verimlilik ve stoklar" }
+]},
+
                 { id: "palet_islemleri", title: "🏭 PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
                     { id: "depoDagiticiTransfer", icon: "➡️", text: "Depo → Dağıtıcı", desc: "Depodan dağıtıcıya palet transferi" },
                     { id: "dagiticiIade", icon: "⬅️", text: "Dağıtıcıdan İade Al", desc: "Dağıtıcıdan depoya iade" },
@@ -208,6 +212,7 @@
             else if (aid === 'yedekleme') await showYedekleme(div); // Bu satır zaten var
             else if (aid === 'sistemiSifirla') showSistemiSifirla(div); // BUNU EKLE
             else if (aid === 'hareketler') await showHareketler(div);
+            else if (aid === 'canliPano') await showCanliPano(div);
         }
 
         async function showDepoStok(div) { let r = await apiCall('/api/stok?tip=DEPO&id=0'); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Depo Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; }
@@ -572,6 +577,57 @@
 
         let st = localStorage.getItem('token'), su = localStorage.getItem('user');
         if (st && su) { token = st; currentUser = JSON.parse(su); goToMainMenu(); } else renderLogin();
+    async function showCanliPano(div) {
+    div.innerHTML = `
+        <div class="card">
+            <div class="card-title">📅 Dönem Analizi</div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="date" id="pano_b" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd;">
+                <input type="date" id="pano_e" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd;">
+                <button class="btn" style="width:auto;" onclick="yuklePano()">Analiz Et</button>
+            </div>
+        </div>
+        <div id="panoContent"></div>
+    `;
+    let today = new Date();
+    document.getElementById('pano_b').value = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    document.getElementById('pano_e').value = today.toISOString().split('T')[0];
+    await yuklePano();
+}
+
+async function yuklePano() {
+    let b = document.getElementById('pano_b').value, e = document.getElementById('pano_e').value;
+    let r = await apiCall('/api/rapor/dashboard', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) });
+    if (!r?.data) return;
+    let d = r.data, oranRenk = d.verim.oran >= 85 ? '#4caf50' : (d.verim.oran >= 60 ? '#ff9800' : '#f44336');
+
+    document.getElementById('panoContent').innerHTML = `
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:20px;">
+            <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DEPO</div><div style="font-size:1.5rem; font-weight:bold; color:#2196F3;">${d.stok.depo}</div></div>
+            <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DAĞITICI</div><div style="font-size:1.5rem; font-weight:bold; color:#ff9800;">${d.stok.dagitici}</div></div>
+            <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">MÜŞTERİ</div><div style="font-size:1.5rem; font-weight:bold; color:#f44336;">${d.stok.musteri}</div></div>
+        </div>
+        <div class="card">
+            <div class="card-title">🚀 Toplama Verimliliği: %${d.verim.oran}</div>
+            <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden;">
+                <div style="width:${d.verim.oran}%; background:${oranRenk}; height:100%;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:0.8rem;">
+                <span>Verilen: ${d.verim.v}</span><span>Toplanan: ${d.verim.t}</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">⚠️ Kırmızı Liste (Bekleyen Paletler)</div>
+            <table class="stok-table">${d.bekleyen.map(m => `<tr><td>${m.ad}</td><td class="miktar az">${m.miktar}</td></tr>`).join('')}</table>
+        </div>
+        <div class="card">
+            <div class="card-title">🚚 Dağıtıcı Karnesi</div>
+            <table class="stok-table"><thead><th>Ad</th><th>V</th><th>T</th></thead>
+            ${d.perf.map(p => `<tr><td>${p.ad}</td><td>${p.verilen}</td><td style="color:#4caf50; font-weight:bold;">${p.toplanan}</td></tr>`).join('')}</table>
+        </div>
+    `;
+}
+
     </script>
 </body>
 </html>
