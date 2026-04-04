@@ -1106,6 +1106,68 @@ def stok_excel_yukle(current_user):
     conn.close()
     
     return jsonify({'success': True, 'guncellenen': guncellenen, 'hatalar': hatalar, 'mesaj': f'{guncellenen} stok kaydı başarıyla eşitlendi.'})
+@app.route('/api/rapor/dashboard', methods=['POST'])
+@token_required
+def rapor_dashboard(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+
+    data = request.get_json() or {}
+    baslangic = data.get('baslangic_tarihi')
+    bitis = data.get('bitis_tarihi')
+
+    if not baslangic or not bitis:
+        bugun = datetime.datetime.now()
+        baslangic = bugun.replace(day=1).strftime('%Y-%m-%d')
+        bitis = bugun.strftime('%Y-%m-%d')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 1. ANLIK STOKLAR
+    cursor.execute("SELECT COALESCE(SUM(miktar), 0) FROM stoklar WHERE stok_sahibi_tip = 'DEPO'")
+    depo_stok = cursor.fetchone()[0]
+    cursor.execute("SELECT COALESCE(SUM(miktar), 0) FROM stoklar WHERE stok_sahibi_tip = 'DAGITICI'")
+    dagitici_stok = cursor.fetchone()[0]
+    cursor.execute("SELECT COALESCE(SUM(miktar), 0) FROM stoklar WHERE stok_sahibi_tip = 'MUSTERI'")
+    musteri_stok = cursor.fetchone()[0]
+
+    # 2. VERİMLİLİK (Seçilen Tarih Aralığı)
+    cursor.execute("SELECT COALESCE(SUM(miktar), 0) FROM hareketler WHERE hareket_tipi = 'DAGITICI_MUSTERI' AND DATE(tarih) BETWEEN %s AND %s", (baslangic, bitis))
+    verilen = cursor.fetchone()[0]
+    cursor.execute("SELECT COALESCE(SUM(miktar), 0) FROM hareketler WHERE hareket_tipi = 'MUSTERI_DAGITICI' AND DATE(tarih) BETWEEN %s AND %s", (baslangic, bitis))
+    toplanan = cursor.fetchone()[0]
+
+    # 3. EN ÇOK BEKLEYEN MÜŞTERİLER
+    cursor.execute('''
+        SELECT m.musteri_adi, SUM(s.miktar) as toplam
+        FROM stoklar s JOIN musteriler m ON s.stok_sahibi_id = m.id
+        WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
+        GROUP BY m.id, m.musteri_adi ORDER BY toplam DESC LIMIT 10
+    ''')
+    bekleyenler = [{'ad': r[0], 'miktar': r[1]} for r in cursor.fetchall()]
+
+    # 4. DAĞITICI PERFORMANSI
+    cursor.execute('''
+        SELECT u.ad_soyad, 
+               SUM(CASE WHEN h.hareket_tipi = 'DAGITICI_MUSTERI' THEN h.miktar ELSE 0 END) as v,
+               SUM(CASE WHEN h.hareket_tipi = 'MUSTERI_DAGITICI' THEN h.miktar ELSE 0 END) as t
+        FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
+        WHERE u.tip = 'DAGITICI' AND DATE(h.tarih) BETWEEN %s AND %s
+        GROUP BY u.id, u.ad_soyad ORDER BY t DESC
+    ''')
+    perf = [{'ad': r[0], 'verilen': r[1], 'toplanan': r[2]} for r in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+
+    oran = round((toplanan / verilen * 100), 1) if verilen > 0 else 0
+    return jsonify({
+        'stok': {'depo': depo_stok, 'dagitici': dagitici_stok, 'musteri': musteri_stok, 'toplam': depo_stok+dagitici_stok+musteri_stok},
+        'verim': {'v': verilen, 't': toplanan, 'oran': oran},
+        'bekleyen': bekleyenler,
+        'perf': perf
+    })
 
 
 if __name__ == '__main__':
