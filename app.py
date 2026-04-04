@@ -1122,7 +1122,7 @@ def rapor_dashboard(current_user):
         baslangic = bugun.replace(day=1).strftime('%Y-%m-%d')
         bitis = bugun.strftime('%Y-%m-%d')
 
-    # PostgreSQL DATE() çökmesini engellemek için string kıyaslaması yapıyoruz
+    # PostgreSQL çökmesini engellemek için string kıyaslaması yapıyoruz
     baslangic_tam = f"{baslangic} 00:00:00"
     bitis_tam = f"{bitis} 23:59:59"
 
@@ -1130,7 +1130,7 @@ def rapor_dashboard(current_user):
     cursor = conn.cursor()
 
     try:
-        # 1. ANLIK STOKLAR (Decimal çökmesini engellemek için int() ile sarıyoruz)
+        # 1. ANLIK STOKLAR
         cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip = 'DEPO'")
         depo_stok = int(cursor.fetchone()[0] or 0)
         
@@ -1156,7 +1156,7 @@ def rapor_dashboard(current_user):
         ''')
         bekleyenler = [{'ad': r[0], 'miktar': int(r[1] or 0)} for r in cursor.fetchall()]
 
-        # 4. DAĞITICI PERFORMANSI
+        # 4. DAĞITICI PERFORMANSI (Hatanın düzeltildiği yer burası -> virgül sonrası eklendi)
         cursor.execute('''
             SELECT u.ad_soyad, 
                    SUM(CASE WHEN h.hareket_tipi = 'DAGITICI_MUSTERI' THEN h.miktar ELSE 0 END) as v,
@@ -1164,7 +1164,8 @@ def rapor_dashboard(current_user):
             FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id
             WHERE u.tip = 'DAGITICI' AND h.tarih >= %s AND h.tarih <= %s
             GROUP BY u.id, u.ad_soyad ORDER BY t DESC
-        ''')
+        ''', (baslangic_tam, bitis_tam))
+        
         perf = [{'ad': r[0], 'verilen': int(r[1] or 0), 'toplanan': int(r[2] or 0)} for r in cursor.fetchall()]
 
     except Exception as e:
@@ -1182,6 +1183,7 @@ def rapor_dashboard(current_user):
         'bekleyen': bekleyenler,
         'perf': perf
     })
+
 
 if __name__ == '__main__':
     veritabani_olustur()
