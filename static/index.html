@@ -86,6 +86,9 @@
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
         const groups = {
             depocu: [
+
+                { id: "toplanacakPaletler", icon: "🚨", text: "Acil Toplanacaklar", desc: "Süresi dolan paletler" }
+
                 { id: "pano", title: "📊 DİJİTAL PANO (DASHBOARD)", icon: "📊", desc: "Canlı operasyonel veriler", actions: [
     { id: "canliPano", icon: "🚀", text: "Canlı İzleme Panosu", desc: "Anlık verimlilik ve stoklar" }
 ]},
@@ -119,6 +122,9 @@
                 ]}
             ],
             dagitici: [
+
+                { id: "toplanacakPaletler", icon: "🚨", text: "Acil Toplanacaklar", desc: "Süresi dolan paletler" }
+
                 { id: "stoklar", title: "📊 STOKLAR", icon: "📊", desc: "Stok görüntüleme", actions: [
                     { id: "kendiStok", icon: "📦", text: "Kendi Stoğum", desc: "Kendi stok durumunuz" },
                     { id: "musteriStoklar", icon: "🏪", text: "Müşteri Stoğu", desc: "Sadece stoklu müşteriler" }
@@ -213,6 +219,8 @@
             else if (aid === 'sistemiSifirla') showSistemiSifirla(div); // BUNU EKLE
             else if (aid === 'hareketler') await showHareketler(div);
             else if (aid === 'canliPano') await showCanliPano(div);
+            else if (aid === 'toplanacakPaletler') await showToplanacakPaletler(div);
+
         }
 
         async function showDepoStok(div) { let r = await apiCall('/api/stok?tip=DEPO&id=0'); if (r && r.data) div.innerHTML = `<div class="card"><div class="card-title">📦 Depo Stoğu</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${r.data.map(s => `    <td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td> `).join('')}</tbody></table></div>`; }
@@ -574,7 +582,67 @@
                 showToast('Bağlantı hatası', 'error');
             }
         }
+        async function showToplanacakPaletler(div) {
+            div.innerHTML = `<div class="loading">Müşteri Yaşlandırma Verileri Hesaplanıyor... Lütfen bekleyin.</div>`;
+            try {
+                let r = await apiCall('/api/toplanacak_paletler', {method: 'GET'});
+                if(r && r.status === 200) {
+                    let data = r.data;
+                    
+                    if(data.length === 0) {
+                        div.innerHTML = `<div class="card" style="text-align:center; padding:30px;">
+                            <div style="font-size:3rem; margin-bottom:10px;">🎉</div>
+                            <h3 style="color:#4caf50;">Harika Haber!</h3>
+                            <p style="color:#666; margin-top:5px;">Şu an piyasada toplanması gereken (7 günü geçmiş) acil bir palet bulunmuyor.</p>
+                        </div>`;
+                        return;
+                    }
 
+                    let html = `
+                        <div class="card no-print">
+                            <div class="card-title">🚨 Acil Toplanacak Paletler (Rotam)</div>
+                            <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Aşağıdaki liste 1 haftadan uzun süredir müşteride bekleyen paletleri gösterir. Önceliği lütfen <strong>Kırmızı (15+ Gün)</strong> olan müşterilere veriniz.</p>
+                            <button class="btn" style="background:#607d8b; width:auto;" onclick="window.print()">🖨️ Rotayı Yazdır</button>
+                        </div>
+                        <div class="card">
+                            <div style="overflow-x:auto;">
+                            <table class="stok-table" style="width:100%; text-align:center; white-space:nowrap;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left;">Müşteri</th>
+                                        <th style="border-right:2px solid #ddd;">Toplam</th>
+                                        <th style="background:#e8f5e9; color:#2e7d32;">0-7 Gün (Yeni)</th>
+                                        <th style="background:#fff8e1; color:#f57f17;">8-14 Gün (Uyarı)</th>
+                                        <th style="background:#ffebee; color:#c62828;">15-21 Gün (Acil)</th>
+                                        <th style="background:#b71c1c; color:#fff;">22+ Gün 🔴</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.map(m => `
+                                        <tr style="border-bottom:1px solid #eee;">
+                                            <td style="text-align:left; white-space:normal; min-width:200px;"><strong>${m.musteri}</strong></td>
+                                            <td style="font-weight:bold; font-size:1.1rem; border-right:2px solid #ddd;">${m.toplam}</td>
+                                            <td style="color:#2e7d32;">${m.g0_7}</td>
+                                            <td style="color:#f57f17; font-weight:${m.g8_14 > 0 ? 'bold' : 'normal'}; background:${m.g8_14 > 0 ? '#fff8e1' : 'transparent'};">${m.g8_14}</td>
+                                            <td style="color:#c62828; font-weight:${m.g15_21 > 0 ? 'bold' : 'normal'}; background:${m.g15_21 > 0 ? '#ffebee' : 'transparent'};">${m.g15_21}</td>
+                                            <td style="color:#b71c1c; font-weight:${m.g22 > 0 ? 'bold' : 'normal'}; background:${m.g22 > 0 ? '#ffcdd2' : 'transparent'};">${m.g22}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            </div>
+                        </div>
+                    `;
+                    div.innerHTML = html;
+                } else {
+                    div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Veriler alınamadı.</div>`;
+                }
+            } catch(e) {
+                div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Sistem Hatası: ${e.message}</div>`;
+            }
+        }
+
+        
         let st = localStorage.getItem('token'), su = localStorage.getItem('user');
         if (st && su) { token = st; currentUser = JSON.parse(su); goToMainMenu(); } else renderLogin();
     async function showCanliPano(div) {
