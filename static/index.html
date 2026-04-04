@@ -597,36 +597,57 @@
 
 async function yuklePano() {
     let b = document.getElementById('pano_b').value, e = document.getElementById('pano_e').value;
-    let r = await apiCall('/api/rapor/dashboard', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) });
-    if (!r?.data) return;
-    let d = r.data, oranRenk = d.verim.oran >= 85 ? '#4caf50' : (d.verim.oran >= 60 ? '#ff9800' : '#f44336');
+    let panoDiv = document.getElementById('panoContent');
+    
+    // Analiz işlemi başlarken kullanıcıya bilgi ver
+    panoDiv.innerHTML = '<div class="loading">Sistem Verileri Analiz Ediliyor...</div>';
+    
+    try {
+        let r = await apiCall('/api/rapor/dashboard', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) });
+        
+        if (!r || !r.data) {
+            panoDiv.innerHTML = '<div class="card" style="color:red; font-weight:bold;">❌ Sunucu bağlantısı koptu veya beklenmedik bir hata oluştu!</div>';
+            return;
+        }
+        
+        if (r.data.hata) {
+            panoDiv.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ ${r.data.hata}</div>`;
+            return;
+        }
 
-    document.getElementById('panoContent').innerHTML = `
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:20px;">
-            <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DEPO</div><div style="font-size:1.5rem; font-weight:bold; color:#2196F3;">${d.stok.depo}</div></div>
-            <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DAĞITICI</div><div style="font-size:1.5rem; font-weight:bold; color:#ff9800;">${d.stok.dagitici}</div></div>
-            <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">MÜŞTERİ</div><div style="font-size:1.5rem; font-weight:bold; color:#f44336;">${d.stok.musteri}</div></div>
-        </div>
-        <div class="card">
-            <div class="card-title">🚀 Toplama Verimliliği: %${d.verim.oran}</div>
-            <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden;">
-                <div style="width:${d.verim.oran}%; background:${oranRenk}; height:100%;"></div>
+        let d = r.data;
+        let oranRenk = d.verim.oran >= 85 ? '#4caf50' : (d.verim.oran >= 60 ? '#ff9800' : '#f44336');
+
+        panoDiv.innerHTML = `
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:20px;">
+                <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DEPO</div><div style="font-size:1.5rem; font-weight:bold; color:#2196F3;">${d.stok.depo}</div></div>
+                <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DAĞITICI</div><div style="font-size:1.5rem; font-weight:bold; color:#ff9800;">${d.stok.dagitici}</div></div>
+                <div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">MÜŞTERİ</div><div style="font-size:1.5rem; font-weight:bold; color:#f44336;">${d.stok.musteri}</div></div>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:0.8rem;">
-                <span>Verilen: ${d.verim.v}</span><span>Toplanan: ${d.verim.t}</span>
+            <div class="card">
+                <div class="card-title">🚀 Toplama Verimliliği: %${d.verim.oran}</div>
+                <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden;">
+                    <div style="width:${d.verim.oran > 100 ? 100 : d.verim.oran}%; background:${oranRenk}; height:100%; transition:width 1s ease-in-out;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:0.8rem;">
+                    <span>Verilen: <strong>${d.verim.v}</strong></span><span>Toplanan: <strong>${d.verim.t}</strong></span>
+                </div>
             </div>
-        </div>
-        <div class="card">
-            <div class="card-title">⚠️ Kırmızı Liste (Bekleyen Paletler)</div>
-            <table class="stok-table">${d.bekleyen.map(m => `<tr><td>${m.ad}</td><td class="miktar az">${m.miktar}</td></tr>`).join('')}</table>
-        </div>
-        <div class="card">
-            <div class="card-title">🚚 Dağıtıcı Karnesi</div>
-            <table class="stok-table"><thead><th>Ad</th><th>V</th><th>T</th></thead>
-            ${d.perf.map(p => `<tr><td>${p.ad}</td><td>${p.verilen}</td><td style="color:#4caf50; font-weight:bold;">${p.toplanan}</td></tr>`).join('')}</table>
-        </div>
-    `;
+            <div class="card">
+                <div class="card-title">⚠️ Kırmızı Liste (Bekleyen Paletler)</div>
+                <table class="stok-table">${d.bekleyen.map(m => `<tr><td>${m.ad}</td><td class="miktar az">${m.miktar}</td></tr>`).join('')}</table>
+            </div>
+            <div class="card">
+                <div class="card-title">🚚 Dağıtıcı Karnesi</div>
+                <table class="stok-table"><thead><tr><th>Ad</th><th>V</th><th>T</th></tr></thead>
+                <tbody>${d.perf.map(p => `<tr><td>${p.ad}</td><td style="color:#f44336;">${p.verilen}</td><td style="color:#4caf50; font-weight:bold;">${p.toplanan}</td></tr>`).join('')}</tbody></table>
+            </div>
+        `;
+    } catch (error) {
+        panoDiv.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Javascript Hatası: ${error.message}</div>`;
+    }
 }
+
 
     </script>
 </body>
