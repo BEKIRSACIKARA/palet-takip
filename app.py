@@ -1184,6 +1184,112 @@ def rapor_dashboard(current_user):
         'perf': perf
     })
 
+@app.route('/api/toplanacak_paletler', methods=['GET'])
+@token_required
+def toplanacak_paletler(current_user):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Tüm müşterilerdeki mevcut pozitif stokları alıyoruz
+        cursor.execute('''
+            SELECT m.id, m.musteri_kodu, m.musteri_adi, SUM(s.miktar) as toplam_stok
+            FROM stoklar s
+            JOIN musteriler m ON s.stok_sahibi_id = m.id
+            WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
+            GROUP BY m.id, m.musteri_kodu, m.musteri_adi
+        ''')
+        musteri_stoklari = cursor.fetchall()
+
+        bugun = datetime.datetime.now()
+        sonuclar = []
+
+        for m in musteri_stoklari:
+            m_id, m_kodu, m_adi, toplam_stok = m
+            toplam_stok = int(toplam_stok)
+
+            # Bu müşteriye yapılan palet VERME (DAGITICI -> MUSTERI) işlemlerini en yeniden eskiye çek
+            cursor.execute('''
+                SELECT tarih, miktar, yapan_kullanici_id
+                FROM hareketler
+                WHERE hareket_tipi = 'DAGITICI_MUSTERI' AND alan_id = %s
+                ORDER BY tarih DESC
+            ''', (m_id,))
+            verme_hareketleri = cursor.fetchall()
+
+            # Yaşlandırma Sepetleri
+            yas_0_7 = 0
+            yas_8_14 = 0
+            yas_15_21 = 0
+            yas_22_arti = 0
+
+            kalan_stok = toplam_stok
+            ilgili_dagitici_mi = False
+
+            # FIFO Mantığı: Güncel stok miktarını, geçmişteki fişlere (sondan başa) dağıtıyoruz
+            for h in verme_hareketleri:
+                if kalan_stok <= 0:
+                    break
+
+                h_tarih_raw = h[0]
+                h_miktar = int(h[1])
+                h_dagitici_id = h[2]
+
+                # Dağıtıcı giriş yaptıysa, sadece kendi palet bıraktığı yerleri görsün
+                if current_user['tip'] == 'DAGITICI' and h_dagitici_id == current_user['id']:
+                    ilgili_dagitici_mi = True
+
+                # Tarih dönüşümü (PostgreSQL objesi veya String olma ihtimaline karşı güvenli)
+                if isinstance(h_tarih_raw, datetime.datetime):
+                    h_tarih = h_tarih_raw
+                else:
+                    try:
+                        h_tarih = datetime.datetime.strptime(str(h_tarih_raw).split('.')[0], '%Y-%m-%d %H:%M:%S')
+                    except:
+                        h_tarih = bugun
+
+                fark_gun = (bugun - h_tarih).days
+                
+                # Stoktan düşülecek miktar
+                islem_miktari = min(kalan_stok, h_miktar)
+                kalan_stok -= islem_miktari
+
+                if fark_gun <= 7:
+                    yas_0_7 += islem_miktari
+                elif fark_gun <= 14:
+                    yas_8_14 += islem_miktari
+                elif fark_gun <= 21:
+                    yas_15_21 += islem_miktari
+                else:
+                    yas_22_arti += islem_miktari
+
+            # Hiç hareketi yok ama stoğu varsa (örneğin Excel'den yüklendiyse) en eski sepete at
+            if kalan_stok > 0:
+                yas_22_arti += kalan_stok
+
+            # Eğer Ana Depocu ise herkesi görsün, Dağıtıcı ise sadece kendi bıraktığı müşterileri görsün
+            if current_user['tip'] == 'DEPOCU' or (current_user['tip'] == 'DAGITICI' and ilgili_dagitici_mi):
+                # Ekranda kalabalık yapmaması için sadece 1 haftadan (7 gün) daha eski paleti olanları listeye al
+                if (yas_8_14 + yas_15_21 + yas_22_arti) > 0:
+                    sonuclar.append({
+                        'musteri': f"{m_kodu} - {m_adi}",
+                        'toplam': toplam_stok,
+                        'g0_7': yas_0_7,
+                        'g8_14': yas_8_14,
+                        'g15_21': yas_15_21,
+                        'g22': yas_22_arti
+                    })
+
+        # En riskli olanları (22+ ve 15+ olanları) en üste getirecek şekilde sırala
+        sonuclar.sort(key=lambda x: (x['g22'], x['g15_21'], x['g8_14']), reverse=True)
+
+        return jsonify(sonuclar)
+    except Exception as e:
+        return jsonify({'hata': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 if __name__ == '__main__':
     veritabani_olustur()
