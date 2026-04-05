@@ -616,37 +616,46 @@
             await kendiPerformansimiHesapla();
         }
 
-        async function kendiPerformansimiHesapla() {
+                async function kendiPerformansimiHesapla() {
             let b = document.getElementById('perf_b').value;
             let e = document.getElementById('perf_e').value;
             let pDiv = document.getElementById('perfContent');
             
             pDiv.innerHTML = `<div class="loading">Performansınız Hesaplanıyor...</div>`;
             
-            // Sadece bu dağıtıcının kendi hareketlerini seçilen tarihe göre API'den istiyoruz
+            // 1. ÇÖZÜM: Arka plana dagitici_id yollamayı bıraktık.
+            // Sadece tarihleri gönderiyoruz. Sistem senin giriş yaptığını bildiği için
+            // sadece sana ait olan verileri otomatik filtreleyip gönderecek.
             let r = await apiCall('/api/hareketler_filtreli', { 
                 method: 'POST', 
-                body: JSON.stringify({ 
-                    baslangic_tarihi: b, 
-                    bitis_tarihi: e,
-                    dagitici_id: currentUser.id 
-                }) 
+                body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) 
             });
 
             if (r && r.data && Array.isArray(r.data)) {
                 let verilen = 0;
                 let toplanan = 0;
                 
-                // İşlem listesini tarayıp matematiği yapıyoruz
+                // 2. ÇÖZÜM: Arka plan işlem tiplerini nasıl adlandırırsa adlandırsın
+                // (İngilizce, Türkçe, oklu vs.) hepsini yakalayacak genişletilmiş filtre.
                 r.data.forEach(h => {
-                    if (h.islem_tipi === 'DAGITICI_MUSTERI') {
-                        verilen += h.miktar;
-                    } else if (h.islem_tipi === 'MUSTERI_DAGITICI') {
-                        toplanan += h.miktar;
+                    let islem = (h.islem_tipi || '').toUpperCase();
+                    let miktar = parseInt(h.miktar) || 0;
+                    
+                    // Piyasaya (Müşteriye) Verilen Paletleri Yakala
+                    if (islem === 'DAGITICI_MUSTERI' || islem.includes('DAĞITICI → MÜŞTERİ') || islem.includes('MÜŞTERİYE VER') || islem.includes('MUSTERIYE VER')) {
+                        verilen += miktar;
+                    } 
+                    // Piyasadan (Müşteriden) Toplanan Paletleri Yakala
+                    else if (islem === 'MUSTERI_DAGITICI' || islem.includes('MÜŞTERİ → DAĞITICI') || islem.includes('MÜŞTERİDEN AL') || islem.includes('MUSTERIDEN AL')) {
+                        toplanan += miktar;
+                    }
+                    // Eğer çok daha farklı bir format geliyorsa (Örn: "Dağıtıcı -> Müşteri") son çare:
+                    else if (islem.includes('DAĞITICI') && islem.includes('MÜŞTERİ')) {
+                         if (islem.indexOf('DAĞITICI') < islem.indexOf('MÜŞTERİ')) verilen += miktar;
+                         else toplanan += miktar;
                     }
                 });
 
-                // Verilen palet 0 ise ve toplanan varsa %100 başarılı sayıyoruz. Hiç hareket yoksa %0.
                 let oran = verilen === 0 ? (toplanan > 0 ? 100 : 0) : Math.round((toplanan / verilen) * 100);
                 let renk = oran >= 85 ? '#4caf50' : (oran >= 60 ? '#ff9800' : '#f44336');
 
@@ -660,6 +669,7 @@
                                 <div><div style="font-size:0.8rem; color:#666;">Piyasaya Verilen</div><strong style="color:#f44336; font-size:1.2rem;">${verilen}</strong></div>
                                 <div><div style="font-size:0.8rem; color:#666;">Piyasadan Toplanan</div><strong style="color:#4caf50; font-size:1.2rem;">${toplanan}</strong></div>
                             </div>
+                            ${r.data.length === 0 ? `<div style="margin-top:15px; font-size:0.75rem; color:#f44336;">Bu tarihler arasında hesabınıza yansıyan hiçbir hareket bulunmuyor.</div>` : ''}
                         </div>
                         <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden; margin-top:20px;">
                             <div style="width:${oran > 100 ? 100 : oran}%; background:${renk}; height:100%; transition:width 1s ease-in-out;"></div>
@@ -670,7 +680,6 @@
                 pDiv.innerHTML = '<div class="card" style="color:red; font-weight:bold;">❌ Seçilen tarihlerde hareket verisi çekilemedi.</div>';
             }
         }
-
 
         async function showTop10Musteri(div) {
             div.innerHTML = `<div class="loading">Müşteri Stokları Analiz Ediliyor...</div>`;
