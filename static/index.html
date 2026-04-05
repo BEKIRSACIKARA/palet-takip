@@ -87,11 +87,13 @@
         const groups = {
             depocu: [
 
-                { id: "toplanacakPaletler", icon: "🚨", text: "Acil Toplanacaklar", desc: "Süresi dolan paletler" },
-
+                            pano: [
                 { id: "pano", title: "📊 DİJİTAL PANO (DASHBOARD)", icon: "📊", desc: "Canlı operasyonel veriler", actions: [
-    { id: "canliPano", icon: "🚀", text: "Canlı İzleme Panosu", desc: "Anlık verimlilik ve stoklar" }
-]},
+                    { id: "canliPano", icon: "🚀", text: "Canlı İzleme Panosu", desc: "Anlık verimlilik ve stoklar" },
+                    { id: "toplanacakPaletler", icon: "🚨", text: "Süresi Dolan Paletler", desc: "Süresi geçen palet takibi" }
+                ]}
+            ],
+
 
                 { id: "palet_islemleri", title: "🏭 PALET İŞLEMLERİ", icon: "🏭", desc: "Palet transfer işlemleri", actions: [
                     { id: "depoDagiticiTransfer", icon: "➡️", text: "Depo → Dağıtıcı", desc: "Depodan dağıtıcıya palet transferi" },
@@ -220,6 +222,8 @@
             else if (aid === 'hareketler') await showHareketler(div);
             else if (aid === 'canliPano') await showCanliPano(div);
             else if (aid === 'toplanacakPaletler') await showToplanacakPaletler(div);
+            else if (aid === 'toplanacakPaletler') await showToplanacakPaletler(div);
+
 
         }
 
@@ -582,8 +586,8 @@
                 showToast('Bağlantı hatası', 'error');
             }
         }
-        async function showToplanacakPaletler(div) {
-            div.innerHTML = `<div class="loading">Müşteri Yaşlandırma Verileri Hesaplanıyor... Lütfen bekleyin.</div>`;
+                async function showToplanacakPaletler(div) {
+            div.innerHTML = `<div class="loading">Süresi Dolan Paletler Hesaplanıyor...</div>`;
             try {
                 let r = await apiCall('/api/toplanacak_paletler', {method: 'GET'});
                 if(r && r.status === 200) {
@@ -592,16 +596,16 @@
                     if(data.length === 0) {
                         div.innerHTML = `<div class="card" style="text-align:center; padding:30px;">
                             <div style="font-size:3rem; margin-bottom:10px;">🎉</div>
-                            <h3 style="color:#4caf50;">Harika Haber!</h3>
-                            <p style="color:#666; margin-top:5px;">Şu an piyasada toplanması gereken (7 günü geçmiş) acil bir palet bulunmuyor.</p>
+                            <h3 style="color:#4caf50;">Her Şey Yolunda!</h3>
+                            <p style="color:#666; margin-top:5px;">Şu an piyasada süresi dolmuş (7 günü geçmiş) toplanacak palet bulunmuyor.</p>
                         </div>`;
                         return;
                     }
 
                     let html = `
                         <div class="card no-print">
-                            <div class="card-title">🚨 Acil Toplanacak Paletler (Rotam)</div>
-                            <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Aşağıdaki liste 1 haftadan uzun süredir müşteride bekleyen paletleri gösterir. Önceliği lütfen <strong>Kırmızı (15+ Gün)</strong> olan müşterilere veriniz.</p>
+                            <div class="card-title">🚨 Süresi Dolan Paletler (Toplama Rotası)</div>
+                            <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Aşağıdaki liste 1 haftadan uzun süredir müşteride bekleyen paletleri gösterir.</p>
                             <button class="btn" style="background:#607d8b; width:auto;" onclick="window.print()">🖨️ Rotayı Yazdır</button>
                         </div>
                         <div class="card">
@@ -611,9 +615,9 @@
                                     <tr>
                                         <th style="text-align:left;">Müşteri</th>
                                         <th style="border-right:2px solid #ddd;">Toplam</th>
-                                        <th style="background:#e8f5e9; color:#2e7d32;">0-7 Gün (Yeni)</th>
-                                        <th style="background:#fff8e1; color:#f57f17;">8-14 Gün (Uyarı)</th>
-                                        <th style="background:#ffebee; color:#c62828;">15-21 Gün (Acil)</th>
+                                        <th style="background:#e8f5e9; color:#2e7d32;">0-7 Gün</th>
+                                        <th style="background:#fff8e1; color:#f57f17;">8-14 Gün</th>
+                                        <th style="background:#ffebee; color:#c62828;">15-21 Gün</th>
                                         <th style="background:#b71c1c; color:#fff;">22+ Gün 🔴</th>
                                     </tr>
                                 </thead>
@@ -623,9 +627,9 @@
                                             <td style="text-align:left; white-space:normal; min-width:200px;"><strong>${m.musteri}</strong></td>
                                             <td style="font-weight:bold; font-size:1.1rem; border-right:2px solid #ddd;">${m.toplam}</td>
                                             <td style="color:#2e7d32;">${m.g0_7}</td>
-                                            <td style="color:#f57f17; font-weight:${m.g8_14 > 0 ? 'bold' : 'normal'}; background:${m.g8_14 > 0 ? '#fff8e1' : 'transparent'};">${m.g8_14}</td>
-                                            <td style="color:#c62828; font-weight:${m.g15_21 > 0 ? 'bold' : 'normal'}; background:${m.g15_21 > 0 ? '#ffebee' : 'transparent'};">${m.g15_21}</td>
-                                            <td style="color:#b71c1c; font-weight:${m.g22 > 0 ? 'bold' : 'normal'}; background:${m.g22 > 0 ? '#ffcdd2' : 'transparent'};">${m.g22}</td>
+                                            <td style="color:#f57f17;">${m.g8_14}</td>
+                                            <td style="color:#c62828; font-weight:bold;">${m.g15_21}</td>
+                                            <td style="color:#b71c1c; font-weight:bold; background:#ffcdd2;">${m.g22}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -635,17 +639,14 @@
                     `;
                     div.innerHTML = html;
                 } else {
-                    div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Veriler alınamadı.</div>`;
+                    div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Veriler alınamadı. Lütfen app.py loglarını kontrol edin.</div>`;
                 }
             } catch(e) {
                 div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Sistem Hatası: ${e.message}</div>`;
             }
         }
-
         
-        let st = localStorage.getItem('token'), su = localStorage.getItem('user');
-        if (st && su) { token = st; currentUser = JSON.parse(su); goToMainMenu(); } else renderLogin();
-    async function showCanliPano(div) {
+ async function showCanliPano(div) {
     div.innerHTML = `
         <div class="card">
             <div class="card-title">📅 Dönem Analizi</div>
