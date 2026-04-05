@@ -593,47 +593,59 @@
             } catch(e) { div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Sistem Hatası: ${e.message}</div>`; }
         }
 
-                async function showKendiVerimliligim(div) {
+                        async function showKendiVerimliligim(div) {
             div.innerHTML = `<div class="loading">Performansınız Hesaplanıyor...</div>`;
             
-            // Bu ayın başından bugüne kadar olan verileri çek
+            // Bu ayın başından bugüne kadar olan tarihleri ayarla
             let today = new Date();
             let b = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
             let e = today.toISOString().split('T')[0];
             
-            let r = await apiCall('/api/rapor/dashboard', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) });
+            // Dağıtıcı Dashboard API'sine giremediği için, doğrudan KENDİ HAREKETLERİNİ çekiyoruz
+            let r = await apiCall('/api/hareketler_filtreli', { 
+                method: 'POST', 
+                body: JSON.stringify({ 
+                    baslangic_tarihi: b, 
+                    bitis_tarihi: e,
+                    dagitici_id: currentUser.id // Sadece kendisinin yaptıklarını istiyoruz
+                }) 
+            });
 
-            if (r && r.data && !r.data.hata) {
-                // Sadece sisteme giriş yapmış dağıtıcının kendi performansını bul
-                let perf = r.data.perf.find(p => p.ad === currentUser.ad_soyad);
+            if (r && r.data && Array.isArray(r.data)) {
+                let verilen = 0;
+                let toplanan = 0;
                 
-                if (perf) {
-                    let v = perf.verilen || 0;
-                    let t = perf.toplanan || 0;
-                    let oran = v === 0 ? (t > 0 ? 100 : 0) : Math.round((t / v) * 100);
-                    let renk = oran >= 85 ? '#4caf50' : (oran >= 60 ? '#ff9800' : '#f44336');
+                // Gelen hareket listesini tarayıp Müşteriye Verilen ve Alınanları topluyoruz
+                r.data.forEach(h => {
+                    if (h.islem_tipi === 'DAGITICI_MUSTERI') {
+                        verilen += h.miktar;  // Piyasaya çıkan
+                    } else if (h.islem_tipi === 'MUSTERI_DAGITICI') {
+                        toplanan += h.miktar; // Piyasadan toplanan
+                    }
+                });
 
-                    div.innerHTML = `
-                        <div class="card">
-                            <div class="card-title">📈 Bu Ayki Verimliliğiniz (${currentUser.ad_soyad})</div>
-                            <div style="text-align:center; padding:20px;">
-                                <div style="font-size:3rem;">${oran >= 85 ? '🌟' : (oran >= 60 ? '👍' : '⚠️')}</div>
-                                <h2 style="color:${renk}; margin:10px 0;">%${oran} Verimlilik</h2>
-                                <div style="display:flex; justify-content:space-around; margin-top:20px;">
-                                    <div><div style="font-size:0.8rem; color:#666;">Piyasaya Verilen</div><strong style="color:#f44336; font-size:1.2rem;">${v}</strong></div>
-                                    <div><div style="font-size:0.8rem; color:#666;">Piyasadan Toplanan</div><strong style="color:#4caf50; font-size:1.2rem;">${t}</strong></div>
-                                </div>
-                            </div>
-                            <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden; margin-top:20px;">
-                                <div style="width:${oran > 100 ? 100 : oran}%; background:${renk}; height:100%; transition:width 1s ease-in-out;"></div>
+                // Verimlilik oranını hesapla (Matematiksel hata olmaması için 0 kontrolü)
+                let oran = verilen === 0 ? (toplanan > 0 ? 100 : 0) : Math.round((toplanan / verilen) * 100);
+                let renk = oran >= 85 ? '#4caf50' : (oran >= 60 ? '#ff9800' : '#f44336');
+
+                div.innerHTML = `
+                    <div class="card">
+                        <div class="card-title">📈 Bu Ayki Verimliliğiniz (${currentUser.ad_soyad})</div>
+                        <div style="text-align:center; padding:20px;">
+                            <div style="font-size:3rem;">${oran >= 85 ? '🌟' : (oran >= 60 ? '👍' : '⚠️')}</div>
+                            <h2 style="color:${renk}; margin:10px 0;">%${oran} Verimlilik</h2>
+                            <div style="display:flex; justify-content:space-around; margin-top:20px;">
+                                <div><div style="font-size:0.8rem; color:#666;">Piyasaya Verilen</div><strong style="color:#f44336; font-size:1.2rem;">${verilen}</strong></div>
+                                <div><div style="font-size:0.8rem; color:#666;">Piyasadan Toplanan</div><strong style="color:#4caf50; font-size:1.2rem;">${toplanan}</strong></div>
                             </div>
                         </div>
-                    `;
-                } else {
-                    div.innerHTML = '<div class="card">Bu ay henüz bir palet hareketiniz bulunmuyor.</div>';
-                }
+                        <div style="background:#eee; height:20px; border-radius:10px; overflow:hidden; margin-top:20px;">
+                            <div style="width:${oran > 100 ? 100 : oran}%; background:${renk}; height:100%; transition:width 1s ease-in-out;"></div>
+                        </div>
+                    </div>
+                `;
             } else {
-                div.innerHTML = '<div class="card" style="color:red; font-weight:bold;">❌ Veriler alınamadı.</div>';
+                div.innerHTML = '<div class="card" style="color:red; font-weight:bold;">❌ Verileriniz çekilemedi. Hareket geçmişiniz yok veya bir hata oluştu.</div>';
             }
         }
 
