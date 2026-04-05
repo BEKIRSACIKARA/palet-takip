@@ -643,6 +643,26 @@
                 `;
             } catch (error) { panoDiv.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Javascript Hatası: ${error.message}</div>`; }
         }
+
+        // ==========================================
+        // İŞTE EKSİK OLAN VE EKRANI BEYAZ BIRAKAN KISIM
+        // UYGULAMAYI BAŞLATAN (TETİKLEYEN) KOD
+        // ==========================================
+        window.onload = () => {
+            let savedToken = localStorage.getItem('token');
+            let savedUser = localStorage.getItem('user');
+            
+            // Eğer daha önce giriş yapıldıysa doğrudan menüyü aç
+            if (savedToken && savedUser) {
+                token = savedToken;
+                currentUser = JSON.parse(savedUser);
+                goToMainMenu(); 
+            } else {
+                // Giriş yapılmamışsa şifre ekranını göster
+                renderLogin(); 
+            }
+        };
+
     </script>
 </body>
 </html>
