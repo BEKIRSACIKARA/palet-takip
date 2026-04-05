@@ -377,12 +377,14 @@ def transfer_yap(current_user):
     cursor = conn.cursor()
     cursor.execute("SELECT id, stok_kodu, palet_adi FROM palet_tipleri WHERE id = %s", (palet_tipi_id,))
     palet = cursor.fetchone()
-    if not palet:
+        if not palet:
         cursor.close()
         conn.close()
         return jsonify({'hata': 'Geçersiz palet tipi'}), 400
+
     transfer_data = {'islem_tipi': hareket_tipi, 'yapan_id': kullanici_id, 'yapan_adi': f"{kullanici_adi} ({kullanici_kadi})", 'detaylar': [], 'toplam_miktar': miktar}
-        if kullanici_tip == 'DEPOCU':
+
+    if kullanici_tip == 'DEPOCU':
         if hareket_tipi == 'DEPO_DAGITICI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             alan_tip, alan_id = SAHIP_TIP_DAGITICI, alici_id
@@ -394,7 +396,7 @@ def transfer_yap(current_user):
                 return jsonify({'hata': 'Geçersiz dağıtıcı ID'}), 400
             alan_adi = f"{dagitici[0]} ({dagitici[1]})"
             aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
-            
+
         elif hareket_tipi == 'DAGITICI_DEPO':
             gonderen_tip, gonderen_id = SAHIP_TIP_DAGITICI, alici_id
             alan_tip, alan_id, alan_adi = SAHIP_TIP_DEPO, 0, "DEPO"
