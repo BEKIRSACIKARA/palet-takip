@@ -616,43 +616,39 @@
             await kendiPerformansimiHesapla();
         }
 
-                async function kendiPerformansimiHesapla() {
+            async function kendiPerformansimiHesapla() {
             let b = document.getElementById('perf_b').value;
             let e = document.getElementById('perf_e').value;
             let pDiv = document.getElementById('perfContent');
             
             pDiv.innerHTML = `<div class="loading">Performansınız Hesaplanıyor...</div>`;
             
-            // 1. ÇÖZÜM: Arka plana dagitici_id yollamayı bıraktık.
-            // Sadece tarihleri gönderiyoruz. Sistem senin giriş yaptığını bildiği için
-            // sadece sana ait olan verileri otomatik filtreleyip gönderecek.
+            // app.py'deki filtrelemeye uygun olarak dağıtıcının kendi ID'sini gönderiyoruz
             let r = await apiCall('/api/hareketler_filtreli', { 
                 method: 'POST', 
-                body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) 
+                body: JSON.stringify({ 
+                    baslangic_tarihi: b, 
+                    bitis_tarihi: e,
+                    dagitici_id: currentUser.id 
+                }) 
             });
 
             if (r && r.data && Array.isArray(r.data)) {
                 let verilen = 0;
                 let toplanan = 0;
                 
-                // 2. ÇÖZÜM: Arka plan işlem tiplerini nasıl adlandırırsa adlandırsın
-                // (İngilizce, Türkçe, oklu vs.) hepsini yakalayacak genişletilmiş filtre.
+                // app.py'nin gönderdiği "Dağıtıcı→Müşteri" ve "Müşteri→Dağıtıcı" formatlarını birebir yakalıyoruz
                 r.data.forEach(h => {
-                    let islem = (h.islem_tipi || '').toUpperCase();
+                    let islem = h.islem_tipi || '';
                     let miktar = parseInt(h.miktar) || 0;
                     
-                    // Piyasaya (Müşteriye) Verilen Paletleri Yakala
-                    if (islem === 'DAGITICI_MUSTERI' || islem.includes('DAĞITICI → MÜŞTERİ') || islem.includes('MÜŞTERİYE VER') || islem.includes('MUSTERIYE VER')) {
+                    // Piyasaya Verilen
+                    if (islem === 'Dağıtıcı→Müşteri' || islem === 'DAGITICI_MUSTERI') {
                         verilen += miktar;
                     } 
-                    // Piyasadan (Müşteriden) Toplanan Paletleri Yakala
-                    else if (islem === 'MUSTERI_DAGITICI' || islem.includes('MÜŞTERİ → DAĞITICI') || islem.includes('MÜŞTERİDEN AL') || islem.includes('MUSTERIDEN AL')) {
+                    // Piyasadan Toplanan
+                    else if (islem === 'Müşteri→Dağıtıcı' || islem === 'MUSTERI_DAGITICI') {
                         toplanan += miktar;
-                    }
-                    // Eğer çok daha farklı bir format geliyorsa (Örn: "Dağıtıcı -> Müşteri") son çare:
-                    else if (islem.includes('DAĞITICI') && islem.includes('MÜŞTERİ')) {
-                         if (islem.indexOf('DAĞITICI') < islem.indexOf('MÜŞTERİ')) verilen += miktar;
-                         else toplanan += miktar;
                     }
                 });
 
