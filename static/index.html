@@ -593,21 +593,43 @@
             } catch(e) { div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Sistem Hatası: ${e.message}</div>`; }
         }
 
-                        async function showKendiVerimliligim(div) {
-            div.innerHTML = `<div class="loading">Performansınız Hesaplanıyor...</div>`;
+        async function showKendiVerimliligim(div) {
+            // Ekrana önce tarih seçicileri çiziyoruz
+            div.innerHTML = `
+                <div class="card">
+                    <div class="card-title">📅 Performans Dönemi</div>
+                    <div style="display:flex; gap:10px; margin-bottom:15px;">
+                        <input type="date" id="perf_b" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd;">
+                        <input type="date" id="perf_e" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd;">
+                        <button class="btn" style="width:auto;" onclick="kendiPerformansimiHesapla()">Getir</button>
+                    </div>
+                </div>
+                <div id="perfContent"></div>
+            `;
             
-            // Bu ayın başından bugüne kadar olan tarihleri ayarla
+            // Tarih kutularına varsayılan olarak bu ayın 1'i ve bugünü dolduruyoruz
             let today = new Date();
-            let b = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-            let e = today.toISOString().split('T')[0];
+            document.getElementById('perf_b').value = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+            document.getElementById('perf_e').value = today.toISOString().split('T')[0];
             
-            // Dağıtıcı Dashboard API'sine giremediği için, doğrudan KENDİ HAREKETLERİNİ çekiyoruz
+            // Sayfa açılır açılmaz varsayılan tarihlerle bir kere hesaplasın
+            await kendiPerformansimiHesapla();
+        }
+
+        async function kendiPerformansimiHesapla() {
+            let b = document.getElementById('perf_b').value;
+            let e = document.getElementById('perf_e').value;
+            let pDiv = document.getElementById('perfContent');
+            
+            pDiv.innerHTML = `<div class="loading">Performansınız Hesaplanıyor...</div>`;
+            
+            // Sadece bu dağıtıcının kendi hareketlerini seçilen tarihe göre API'den istiyoruz
             let r = await apiCall('/api/hareketler_filtreli', { 
                 method: 'POST', 
                 body: JSON.stringify({ 
                     baslangic_tarihi: b, 
                     bitis_tarihi: e,
-                    dagitici_id: currentUser.id // Sadece kendisinin yaptıklarını istiyoruz
+                    dagitici_id: currentUser.id 
                 }) 
             });
 
@@ -615,22 +637,22 @@
                 let verilen = 0;
                 let toplanan = 0;
                 
-                // Gelen hareket listesini tarayıp Müşteriye Verilen ve Alınanları topluyoruz
+                // İşlem listesini tarayıp matematiği yapıyoruz
                 r.data.forEach(h => {
                     if (h.islem_tipi === 'DAGITICI_MUSTERI') {
-                        verilen += h.miktar;  // Piyasaya çıkan
+                        verilen += h.miktar;
                     } else if (h.islem_tipi === 'MUSTERI_DAGITICI') {
-                        toplanan += h.miktar; // Piyasadan toplanan
+                        toplanan += h.miktar;
                     }
                 });
 
-                // Verimlilik oranını hesapla (Matematiksel hata olmaması için 0 kontrolü)
+                // Verilen palet 0 ise ve toplanan varsa %100 başarılı sayıyoruz. Hiç hareket yoksa %0.
                 let oran = verilen === 0 ? (toplanan > 0 ? 100 : 0) : Math.round((toplanan / verilen) * 100);
                 let renk = oran >= 85 ? '#4caf50' : (oran >= 60 ? '#ff9800' : '#f44336');
 
-                div.innerHTML = `
+                pDiv.innerHTML = `
                     <div class="card">
-                        <div class="card-title">📈 Bu Ayki Verimliliğiniz (${currentUser.ad_soyad})</div>
+                        <div class="card-title">📈 Verimliliğiniz (${b} - ${e})</div>
                         <div style="text-align:center; padding:20px;">
                             <div style="font-size:3rem;">${oran >= 85 ? '🌟' : (oran >= 60 ? '👍' : '⚠️')}</div>
                             <h2 style="color:${renk}; margin:10px 0;">%${oran} Verimlilik</h2>
@@ -645,9 +667,10 @@
                     </div>
                 `;
             } else {
-                div.innerHTML = '<div class="card" style="color:red; font-weight:bold;">❌ Verileriniz çekilemedi. Hareket geçmişiniz yok veya bir hata oluştu.</div>';
+                pDiv.innerHTML = '<div class="card" style="color:red; font-weight:bold;">❌ Seçilen tarihlerde hareket verisi çekilemedi.</div>';
             }
         }
+
 
         async function showTop10Musteri(div) {
             div.innerHTML = `<div class="loading">Müşteri Stokları Analiz Ediliyor...</div>`;
