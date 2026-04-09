@@ -226,7 +226,7 @@
             else if (aid === 'top10Musteri') await showTop10Musteri(div);
         }
 
-        // --- YENİ YARDIMCI FONKSİYONLAR (GÖRSELDEKİ STOK BİLGİSİNİ EKLEMEK İÇİN) ---
+        // --- YARDIMCI FONKSİYONLAR ---
 
         async function getDagiticiOptionsWithStok() {
             let d = await apiCall('/api/dagitici_listesi');
@@ -241,17 +241,32 @@
             return html;
         }
 
-        function formatMusteriItem(x, targetId) {
-            let toplam = x.stoklar ? x.stoklar.reduce((a, b) => a + b.miktar, 0) : 0;
-            return `<div class="musteri-item" data-id="${x.id}" data-kod="${x.musteri_kodu}" data-ad="${x.musteri_adi}" onclick="musteriSecHizli(this, '${targetId}')">
-                <div><strong>${x.musteri_kodu}</strong> - ${x.musteri_adi}</div>
-                <div style="font-size:0.7rem;">🏷️ ${x.tabela_adi}</div>
-                <div style="font-size:0.75rem; color:${toplam > 0 ? '#f44336' : '#4caf50'}; font-weight:bold;">📦 Toplam: ${toplam} adet</div>
-            </div>`;
+        // TÜM MÜŞTERİLERİ STOK BİLGİSİYLE GETİREN YENİ YARDIMCI
+        async function getMusteriItemsWithStok(targetMode) {
+            // Not: api/musteri_stoklari sadece stokluları getiriyordu. 
+            // Bu yüzden önce tüm müşterileri, sonra stokları alıp eşleştiriyoruz.
+            let mAll = await apiCall('/api/tum_musteriler');
+            let mStok = await apiCall('/api/musteri_stoklari');
+            
+            let stokMap = {};
+            if(mStok?.data) {
+                mStok.data.forEach(s => { stokMap[s.id] = s.stoklar.reduce((a, b) => a + b.miktar, 0); });
+            }
+
+            if (!mAll?.data) return '<div class="card">Müşteri bulunamadı</div>';
+
+            return mAll.data.map(x => {
+                let toplam = stokMap[x.id] || 0;
+                return `<div class="musteri-item" data-id="${x.id}" data-kod="${x.musteri_kodu}" data-ad="${x.musteri_adi}" onclick="musteriSecHizli(this, '${targetMode}')">
+                    <div><strong>${x.musteri_kodu}</strong> - ${x.musteri_adi}</div>
+                    <div style="font-size:0.7rem;">🏷️ ${x.tabela_adi}</div>
+                    <div style="font-size:0.75rem; color:${toplam > 0 ? '#f44336' : '#4caf50'}; font-weight:bold;">📦 Toplam: ${toplam} adet</div>
+                </div>`;
+            }).join('');
         }
 
         function musteriSecHizli(el, mode) {
-            document.querySelectorAll(`#musteriListesi${mode} .musteri-item`).forEach(i => i.classList.remove('selected'));
+            document.querySelectorAll(`.musteri-list .musteri-item`).forEach(i => i.classList.remove('selected'));
             el.classList.add('selected');
             if(mode === 'Ver') window.seciliMusteriIdVer = parseInt(el.getAttribute('data-id'));
             else if(mode === 'Al') window.seciliMusteriIdAl = parseInt(el.getAttribute('data-id'));
@@ -270,6 +285,7 @@
         async function showDagiticiStoklar(div) { let r = await apiCall('/api/dagitici_listesi'); if (r && r.data && r.data.length) { div.innerHTML = ''; for (let d of r.data) { let s = await apiCall(`/api/stok?tip=DAGITICI&id=${d.id}`); if (s && s.data) div.innerHTML += `<div class="card"><div class="card-title">${d.ad_soyad} (${d.kullanici_adi})</div><table class="stok-table"><thead><th>Stok Kodu</th><th>Palet Tipi</th><th class="miktar">Miktar</th></thead><tbody>${s.data.map(s => `<tr><td>${s.stok_kodu}</td><td>${s.palet_adi}</td><td class="miktar ${s.miktar === 0 ? 'az' : s.miktar < 10 ? 'orta' : 'cok'}">${s.miktar}</td></tr>`).join('')}</tbody></table></div>`; } } else div.innerHTML = '<div class="card">📭 Dağıtıcı bulunmuyor.</div>'; }
         
         async function showMusteriStoklar(div) {
+            div.innerHTML = `<div class="loading">Stoklu müşteriler yükleniyor...</div>`;
             let r = await apiCall('/api/musteri_stoklari');
             if (!r?.data || !r.data.length) { div.innerHTML = '<div class="card">📭 Stokta palet olan müşteri bulunmuyor</div>'; return; }
             div.innerHTML = `<div class="card"><div class="card-title">🏪 Stokta Palet Olan Müşteriler</div><input type="text" id="musteriArama" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriListe()"><div id="musteriListesi" class="musteri-list">${r.data.map(m => `<div class="musteri-item" data-id="${m.id}" data-kod="${m.musteri_kodu}" data-ad="${m.musteri_adi}" onclick="musteriSecStok(this)"><div><strong>${m.musteri_kodu}</strong> - ${m.musteri_adi}</div><div style="font-size:0.7rem;">🏷️ ${m.tabela_adi}</div><div style="font-size:0.75rem; color:#f44336; font-weight:bold;">📦 Toplam: ${m.stoklar.reduce((a,b)=>a+b.miktar,0)} adet</div></div>`).join('')}</div></div><div id="musteriStokSonuc"></div>`;
@@ -300,8 +316,8 @@
 
         async function showDepoMusteri(div) {
             div.innerHTML = `<div class="loading">Müşteriler ve stoklar getiriliyor...</div>`;
-            let m = await apiCall('/api/musteri_stoklari');
-            div.innerHTML = `<div class="card"><div class="card-title">🔍 Müşteri Seç (Doğrudan Depo İşlemi)</div><input type="text" id="musteriAramaDepo" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriDepo()"><div id="musteriListesiDepo" class="musteri-list">${m.data.map(x => formatMusteriItem(x, 'Depo')).join('')}</div></div><div id="musteriIslemlerDepo" style="display:none;"></div>`;
+            const mItems = await getMusteriItemsWithStok('Depo');
+            div.innerHTML = `<div class="card"><div class="card-title">🔍 Müşteri Seç (Doğrudan Depo İşlemi)</div><input type="text" id="musteriAramaDepo" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriDepo()"><div id="musteriListesiDepo" class="musteri-list">${mItems}</div></div><div id="musteriIslemlerDepo" style="display:none;"></div>`;
         }
 
         function filtreleMusteriDepo() { let a = document.getElementById('musteriAramaDepo').value.toLowerCase(); document.querySelectorAll('#musteriListesiDepo .musteri-item').forEach(i => { let k = i.getAttribute('data-kod').toLowerCase(), ad = i.getAttribute('data-ad').toLowerCase(); i.style.display = (a === '' || k.includes(a) || ad.includes(a)) ? 'block' : 'none'; }); }
@@ -310,8 +326,7 @@
         async function depoMusteridenPaletAl() { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) return; document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (Depoya İade)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="depoMusteriTransfer('MUSTERI_DEPO')">Palet Al</button></div>`; }
         
         async function depoMusteriTransfer(tip) {
-            let pid = document.getElementById('palet_tipi_id')?.value;
-            let m = document.getElementById('miktar')?.value;
+            let pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value;
             if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
             let body = tip === 'DEPO_DAGITICI' ? { hareket_tipi: 'DEPO_DAGITICI', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId } : { hareket_tipi: 'DAGITICI_DEPO', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId };
             showToast('İşlem yapılıyor...', 'info');
@@ -337,19 +352,19 @@
         }
         
         async function showMusteriyeVer(div) {
-            div.innerHTML = `<div class="card"><div class="loading">Müşteri listesi ve stoklar yükleniyor...</div></div>`;
-            let m = await apiCall('/api/musteri_stoklari');
-            let p = await apiCall('/api/palet_tipleri');
-            div.innerHTML = `<div class="card"><div class="card-title">➡️ Müşteriye Palet Ver</div><input type="text" id="musteriAramaVer" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriVer()"><div id="musteriListesiVer" class="musteri-list">${m.data.map(x => formatMusteriItem(x, 'Ver')).join('')}</div><div class="form-group" style="margin-top:15px;"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(x => `<option value="${x.id}">${x.stok_kodu} - ${x.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="transferIslemMusteri('DAGITICI_MUSTERI')">Palet Ver</button></div>`;
+            div.innerHTML = `<div class="card"><div class="loading">Tüm müşteriler ve stoklar yükleniyor...</div></div>`;
+            const mItems = await getMusteriItemsWithStok('Ver');
+            const p = await apiCall('/api/palet_tipleri');
+            div.innerHTML = `<div class="card"><div class="card-title">➡️ Müşteriye Palet Ver</div><input type="text" id="musteriAramaVer" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriVer()"><div id="musteriListesiVer" class="musteri-list">${mItems}</div><div class="form-group" style="margin-top:15px;"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(x => `<option value="${x.id}">${x.stok_kodu} - ${x.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="transferIslemMusteri('DAGITICI_MUSTERI')">Palet Ver</button></div>`;
         }
         
         function filtreleMusteriVer() { let a = document.getElementById('musteriAramaVer').value.toLowerCase(); document.querySelectorAll('#musteriListesiVer .musteri-item').forEach(i => { let k = i.getAttribute('data-kod').toLowerCase(), ad = i.getAttribute('data-ad').toLowerCase(); i.style.display = (a === '' || k.includes(a) || ad.includes(a)) ? 'block' : 'none'; }); }
         
         async function showMusteridenAl(div) {
-            div.innerHTML = `<div class="card"><div class="loading">Müşteri listesi ve stoklar yükleniyor...</div></div>`;
-            let m = await apiCall('/api/musteri_stoklari');
-            let p = await apiCall('/api/palet_tipleri');
-            div.innerHTML = `<div class="card"><div class="card-title">⬅️ Müşteriden İade Al</div><input type="text" id="musteriAramaAl" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriAl()"><div id="musteriListesiAl" class="musteri-list">${m.data.map(x => formatMusteriItem(x, 'Al')).join('')}</div><div class="form-group" style="margin-top:15px;"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(x => `<option value="${x.id}">${x.stok_kodu} - ${x.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="transferIslemMusteri('MUSTERI_DAGITICI')">İade Al</button></div>`;
+            div.innerHTML = `<div class="card"><div class="loading">Tüm müşteriler ve stoklar yükleniyor...</div></div>`;
+            const mItems = await getMusteriItemsWithStok('Al');
+            const p = await apiCall('/api/palet_tipleri');
+            div.innerHTML = `<div class="card"><div class="card-title">⬅️ Müşteriden İade Al</div><input type="text" id="musteriAramaAl" class="search-box" placeholder="🔎 Müşteri kodu veya adı ile ara..." onkeyup="filtreleMusteriAl()"><div id="musteriListesiAl" class="musteri-list">${mItems}</div><div class="form-group" style="margin-top:15px;"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(x => `<option value="${x.id}">${x.stok_kodu} - ${x.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="transferIslemMusteri('MUSTERI_DAGITICI')">İade Al</button></div>`;
         }
         
         function filtreleMusteriAl() { let a = document.getElementById('musteriAramaAl').value.toLowerCase(); document.querySelectorAll('#musteriListesiAl .musteri-item').forEach(i => { let k = i.getAttribute('data-kod').toLowerCase(), ad = i.getAttribute('data-ad').toLowerCase(); i.style.display = (a === '' || k.includes(a) || ad.includes(a)) ? 'block' : 'none'; }); }
@@ -369,8 +384,7 @@
         
         async function transferIslemMusteri(tip) {
             let aid = tip === 'DAGITICI_MUSTERI' ? window.seciliMusteriIdVer : window.seciliMusteriIdAl;
-            let pid = document.getElementById('palet_tipi_id')?.value;
-            let m = document.getElementById('miktar')?.value;
+            let pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value;
             if (!aid) { showToast('Lütfen bir müşteri seçin', 'error'); return; }
             if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
             let body = { hareket_tipi: tip, palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: parseInt(aid) };
