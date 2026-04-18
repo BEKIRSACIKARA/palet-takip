@@ -377,11 +377,6 @@ def get_stok(current_user):
     if not tip or kimlik is None:
         return jsonify({'hata': 'tip ve id parametreleri gerekli'}), 400
     
-    # Forklift operatörü sadece DEPO stoğunu görebilir
-    if current_user['tip'] == 'FORKLIFT':
-        tip = 'DEPO'
-        kimlik = 0
-    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT pt.id, pt.stok_kodu, pt.palet_adi, COALESCE(s.miktar, 0) FROM palet_tipleri pt LEFT JOIN stoklar s ON pt.id = s.palet_tipi_id AND s.stok_sahibi_tip = %s AND s.stok_sahibi_id = %s ORDER BY pt.id", (tip, kimlik))
@@ -446,7 +441,7 @@ def transfer_yap(current_user):
         conn.close()
         return jsonify({'hata': 'Geçersiz palet tipi'}), 400
     transfer_data = {'islem_tipi': hareket_tipi, 'yapan_id': kullanici_id, 'yapan_adi': f"{kullanici_adi} ({kullanici_kadi})", 'detaylar': [], 'toplam_miktar': miktar}
-    if kullanici_tip == 'DEPOCU':
+    if kullanici_tip in ['DEPOCU', 'FORKLIFT']:
         if hareket_tipi == 'DEPO_DAGITICI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             alan_tip, alan_id = None, alici_id
@@ -636,10 +631,8 @@ def get_hareketler(current_user):
     limit = request.args.get('limit', 50, type=int)
     conn = get_db_connection()
     cursor = conn.cursor()
-    if current_user['tip'] == 'DEPOCU':
+    if current_user['tip'] in ['DEPOCU', 'FORKLIFT']:
         cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id ORDER BY h.tarih DESC LIMIT %s", (limit,))
-    elif current_user['tip'] == 'FORKLIFT':
-        cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id WHERE h.yapan_kullanici_id = %s ORDER BY h.tarih DESC LIMIT %s", (current_user['id'], limit))
     else:
         cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id WHERE h.gonderen_id = %s OR h.alan_id = %s ORDER BY h.tarih DESC LIMIT %s", (current_user['id'], current_user['id'], limit))
     sonuc = cursor.fetchall()
@@ -674,9 +667,6 @@ def get_hareketler_filtreli(current_user):
     if baslangic and bitis:
         query += " AND DATE(h.tarih) BETWEEN %s AND %s"
         params.extend([baslangic, bitis])
-    if current_user['tip'] == 'FORKLIFT':
-        query += " AND h.yapan_kullanici_id = %s"
-        params.append(current_user['id'])
     query += " ORDER BY h.tarih DESC LIMIT %s"
     params.append(limit)
     cursor.execute(query, params)
@@ -693,7 +683,6 @@ def get_hareketler_filtreli(current_user):
 @app.route('/api/depo_stok_hareket', methods=['POST'])
 @token_required
 def depo_stok_hareket(current_user):
-    # DEPOCU veya FORKLIFT yetkisi
     if current_user['tip'] not in ['DEPOCU', 'FORKLIFT']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
@@ -1263,7 +1252,7 @@ def toplanacak_paletler(current_user):
                     yas_22_arti += islem_miktari
             if kalan_stok > 0:
                 yas_22_arti += kalan_stok
-            if current_user['tip'] == 'DEPOCU' or (current_user['tip'] == 'DAGITICI' and ilgili_dagitici_mi):
+            if current_user['tip'] in ['DEPOCU', 'FORKLIFT'] or (current_user['tip'] == 'DAGITICI' and ilgili_dagitici_mi):
                 if (yas_8_14 + yas_15_21 + yas_22_arti) > 0:
                     sonuclar.append({
                         'musteri': f"{m_kodu} - {m_adi}",
