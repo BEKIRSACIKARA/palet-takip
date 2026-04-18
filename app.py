@@ -29,6 +29,7 @@ PALET_TIPLERI = [("P001", "Euro Palet"), ("P002", "Sanayi Paleti"), ("P003", "Pl
 SAHIP_TIP_DEPO = "DEPO"
 SAHIP_TIP_DAGITICI = "DAGITICI"
 SAHIP_TIP_MUSTERI = "MUSTERI"
+SAHIP_TIP_FORKLIFT = "FORKLIFT"
 
 HAREKET_DEPO_DAGITICI = "DEPO_DAGITICI"
 HAREKET_DAGITICI_MUSTERI = "DAGITICI_MUSTERI"
@@ -215,6 +216,20 @@ def get_kullanici_listesi(current_user):
     return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
 
 
+@app.route('/api/forklift_listesi', methods=['GET'])
+@token_required
+def get_forklift_listesi(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip = 'FORKLIFT' ORDER BY ad_soyad")
+    sonuc = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
+
+
 @app.route('/api/dagitici_listesi', methods=['GET'])
 @token_required
 def get_dagitici_listesi(current_user):
@@ -254,6 +269,54 @@ def dagitici_ekle(current_user):
         cursor.close()
         conn.close()
         return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/forklift_ekle', methods=['POST'])
+@token_required
+def forklift_ekle(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    data = request.get_json()
+    kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
+    if not kullanici_adi or not ad_soyad or not sifre:
+        return jsonify({'hata': 'Tüm alanlar gerekli'}), 400
+    if len(sifre) < 4:
+        return jsonify({'hata': 'Şifre en az 4 karakter olmalı'}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) VALUES (%s, %s, %s, %s) RETURNING id", 
+                       (kullanici_adi, hash_sifre(sifre), 'FORKLIFT', ad_soyad))
+        forklift_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'id': forklift_id, 'mesaj': 'Forklift operatörü eklendi'})
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/forklift_sil', methods=['DELETE'])
+@token_required
+def forklift_sil(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    forklift_id = request.args.get('id', type=int)
+    if not forklift_id:
+        return jsonify({'hata': 'ID gerekli'}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM kullanicilar WHERE id = %s AND tip = 'FORKLIFT'", (forklift_id,))
+        conn.commit()
+        return jsonify({'success': True, 'mesaj': 'Forklift operatörü silindi'})
+    except Exception as e:
+        return jsonify({'hata': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.route('/api/tum_musteriler', methods=['GET'])
@@ -313,6 +376,12 @@ def get_stok(current_user):
     tip, kimlik = request.args.get('tip'), request.args.get('id', type=int)
     if not tip or kimlik is None:
         return jsonify({'hata': 'tip ve id parametreleri gerekli'}), 400
+    
+    # Forklift operatörü sadece DEPO stoğunu görebilir
+    if current_user['tip'] == 'FORKLIFT':
+        tip = 'DEPO'
+        kimlik = 0
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT pt.id, pt.stok_kodu, pt.palet_adi, COALESCE(s.miktar, 0) FROM palet_tipleri pt LEFT JOIN stoklar s ON pt.id = s.palet_tipi_id AND s.stok_sahibi_tip = %s AND s.stok_sahibi_id = %s ORDER BY pt.id", (tip, kimlik))
@@ -569,6 +638,8 @@ def get_hareketler(current_user):
     cursor = conn.cursor()
     if current_user['tip'] == 'DEPOCU':
         cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id ORDER BY h.tarih DESC LIMIT %s", (limit,))
+    elif current_user['tip'] == 'FORKLIFT':
+        cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id WHERE h.yapan_kullanici_id = %s ORDER BY h.tarih DESC LIMIT %s", (current_user['id'], limit))
     else:
         cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id WHERE h.gonderen_id = %s OR h.alan_id = %s ORDER BY h.tarih DESC LIMIT %s", (current_user['id'], current_user['id'], limit))
     sonuc = cursor.fetchall()
@@ -603,6 +674,9 @@ def get_hareketler_filtreli(current_user):
     if baslangic and bitis:
         query += " AND DATE(h.tarih) BETWEEN %s AND %s"
         params.extend([baslangic, bitis])
+    if current_user['tip'] == 'FORKLIFT':
+        query += " AND h.yapan_kullanici_id = %s"
+        params.append(current_user['id'])
     query += " ORDER BY h.tarih DESC LIMIT %s"
     params.append(limit)
     cursor.execute(query, params)
@@ -619,7 +693,8 @@ def get_hareketler_filtreli(current_user):
 @app.route('/api/depo_stok_hareket', methods=['POST'])
 @token_required
 def depo_stok_hareket(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    # DEPOCU veya FORKLIFT yetkisi
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     palet_tipi_id, miktar, islem_tipi, aciklama = data.get('palet_tipi_id'), data.get('miktar'), data.get('islem_tipi'), data.get('aciklama', '')
