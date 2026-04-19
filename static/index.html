@@ -451,21 +451,25 @@ async function showKullaniciYonetim(div) {
         function duzenleKullanici(id, ad, soyad) { document.getElementById('kullaniciModalTitle').innerText = 'Dağıtıcı Düzenle'; document.getElementById('kullanici_adi_duzenle').value = ad; document.getElementById('ad_soyad_duzenle').value = soyad; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = id; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
 async function kaydetKullanici() {
-    let id = document.getElementById('kullanici_id_duzenle').value;
     let ad = document.getElementById('kullanici_adi_duzenle').value;
     let soyad = document.getElementById('ad_soyad_duzenle').value;
     let s = document.getElementById('kullanici_sifre').value;
-    let tip = document.getElementById('kullanici_tipi_duzenle').value;
+    let tip = document.getElementById('kullanici_tipi_duzenle').value; // Seçilen tipi al
 
-    let r;
-    if (id) {
-        // Düzenleme
-        r = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify({ id: parseInt(id), kullanici_adi: ad, ad_soyad: soyad, sifre: s }) });
+    let url;
+    // Tipe göre doğru API ucuna gönderiyoruz
+    if (tip === 'FORKLIFT_OPERATORU') {
+        url = '/api/forklift_operatoru_ekle'; 
     } else {
-        // Yeni Ekleme (Tipe göre URL seçer)
-        let url = (tip === 'FORKLIFT_OPERATORU') ? '/api/forklift_operatoru_ekle' : '/api/dagitici_ekle';
-        r = await apiCall(url, { method: 'POST', body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) });
+        url = '/api/dagitici_ekle';
     }
+
+    let r = await apiCall(url, { 
+        method: 'POST', 
+        body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) 
+    });
+    
+    // ... geri kalan işlemler
 
     if (r && r.status === 200 && r.data.success) {
         showToast(r.data.mesaj);
