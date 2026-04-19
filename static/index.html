@@ -980,20 +980,124 @@
             } catch (e) { d.innerHTML = `<div style="background:#f44336;color:white;padding:12px;border-radius:8px;">❌ Sistemsel Hata: ${e.message}</div>`; showToast('Bağlantı hatası', 'error'); }
         }
         
+        // Süresi Dolan Paletler - global veri ve aktif filtre
+        let _toplanacakData = [];
+        let _toplanacakFiltre = null; // null=tümü, 'g0_7','g8_14','g15_21','g22'
+
         async function showToplanacakPaletler(div) {
             div.innerHTML = `<div class="loading">Süresi Dolan Paletler Hesaplanıyor...</div>`;
             try {
                 let r = await apiCall('/api/toplanacak_paletler', {method: 'GET'});
                 if(r && r.status === 200) {
-                    let data = r.data;
-                    if(data.length === 0) {
+                    _toplanacakData = r.data;
+                    _toplanacakFiltre = null;
+                    if(_toplanacakData.length === 0) {
                         div.innerHTML = `<div class="card" style="text-align:center; padding:30px;"><div style="font-size:3rem; margin-bottom:10px;">🎉</div><h3 style="color:#4caf50;">Her Şey Yolunda!</h3><p style="color:#666; margin-top:5px;">Şu an piyasada süresi dolmuş (7 günü geçmiş) toplanacak palet bulunmuyor.</p></div>`;
                         return;
                     }
-                    let html = `<div class="card no-print"><div class="card-title">🚨 Süresi Dolan Paletler (Toplama Rotası)</div><p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Aşağıdaki liste 1 haftadan uzun süredir müşteride bekleyen paletleri gösterir.</p><button class="btn" style="background:#607d8b; width:auto;" onclick="window.print()">🖨️ Rotayı Yazdır</button></div><div class="card"><div style="overflow-x:auto;"><table class="stok-table" style="width:100%; text-align:center; white-space:nowrap;"><thead><tr><th style="text-align:left;">Müşteri</th><th style="border-right:2px solid #ddd;">Toplam</th><th style="background:#e8f5e9; color:#2e7d32;">0-7 Gün</th><th style="background:#fff8e1; color:#f57f17;">8-14 Gün</th><th style="background:#ffebee; color:#c62828;">15-21 Gün</th><th style="background:#b71c1c; color:#fff;">22+ Gün 🔴</th></tr></thead><tbody>${data.map(m => `<tr style="border-bottom:1px solid #eee;"><td style="text-align:left; white-space:normal; min-width:200px;"><strong>${m.musteri}</strong></td><td style="font-weight:bold; font-size:1.1rem; border-right:2px solid #ddd;">${m.toplam}</td><td style="color:#2e7d32;">${m.g0_7}</td><td style="color:#f57f17;">${m.g8_14}</td><td style="color:#c62828; font-weight:bold;">${m.g15_21}</td><td style="color:#b71c1c; font-weight:bold; background:#ffcdd2;">${m.g22}</td></tr>`).join('')}</tbody></table></div></div>`;
-                    div.innerHTML = html;
+                    div.innerHTML = `
+                        <div class="card no-print">
+                            <div class="card-title">🚨 Süresi Dolan Paletler (Toplama Rotası)</div>
+                            <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Aşağıdaki liste 1 haftadan uzun süredir müşteride bekleyen paletleri gösterir.<br>
+                            <span style="font-size:0.78rem; color:#2196F3;">💡 Gün aralığı başlıklarına tıklayarak o grupta palete sahip müşterileri filtreleyin.</span></p>
+                            <button class="btn" style="background:#607d8b; width:auto;" onclick="window.print()">🖨️ Rotayı Yazdır</button>
+                        </div>
+                        <div class="card" id="toplanacakTableCard"></div>`;
+                    _renderToplanacakTable();
                 } else { div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Veriler alınamadı.</div>`; }
             } catch(e) { div.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Sistem Hatası: ${e.message}</div>`; }
+        }
+
+        function _toplanacakFiltreDegistir(alan) {
+            _toplanacakFiltre = (_toplanacakFiltre === alan) ? null : alan;
+            _renderToplanacakTable();
+        }
+
+        function _renderToplanacakTable() {
+            const data = _toplanacakData;
+            const f = _toplanacakFiltre;
+
+            // Filtrelenmiş satırlar
+            const satirlar = f ? data.filter(m => m[f] > 0) : data;
+
+            // Her sütun toplamları (filtrelenmiş satırlar üzerinden)
+            const topToplam = satirlar.reduce((a,m) => a + m.toplam, 0);
+            const top07     = satirlar.reduce((a,m) => a + m.g0_7,   0);
+            const top814    = satirlar.reduce((a,m) => a + m.g8_14,  0);
+            const top1521   = satirlar.reduce((a,m) => a + m.g15_21, 0);
+            const top22     = satirlar.reduce((a,m) => a + m.g22,    0);
+
+            // Başlık stilleri - aktif filtre vurgulanır
+            const thBase = (alan, bg, clr, label) => {
+                const isActive = f === alan;
+                const cursor = 'cursor:pointer; user-select:none;';
+                const activeStyle = isActive
+                    ? `outline: 3px solid #333; outline-offset:-2px; box-shadow:inset 0 0 0 3px rgba(0,0,0,0.15);`
+                    : '';
+                const totalVal = alan === 'g0_7' ? top07 : alan === 'g8_14' ? top814 : alan === 'g15_21' ? top1521 : top22;
+                return `<th onclick="_toplanacakFiltreDegistir('${alan}')"
+                    style="background:${bg}; color:${clr}; ${cursor} ${activeStyle} padding:0; vertical-align:top; min-width:80px;">
+                    <div style="padding:8px 8px 2px; font-weight:600; font-size:0.85rem;">
+                        ${isActive ? '✅ ' : ''}${label}
+                    </div>
+                    <div style="padding:2px 8px 8px; font-size:0.9rem; font-weight:700; opacity:0.9;">
+                        ${totalVal} adet
+                    </div>
+                </th>`;
+            };
+
+            // Aktif filtre bilgi mesajı
+            const filtreBilgi = f ? `
+                <div style="background:#fff3e0; border:1px solid #ff9800; border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <span style="font-size:0.85rem; color:#e65100;">
+                        🔍 <strong>${f==='g0_7'?'0-7 Gün':f==='g8_14'?'8-14 Gün':f==='g15_21'?'15-21 Gün':'22+ Gün'}</strong> filtrelemesi aktif — ${satirlar.length} müşteri, toplam <strong>${topToplam}</strong> palet
+                    </span>
+                    <button onclick="_toplanacakFiltreDegistir('${f}')" style="background:#ff9800; border:none; color:white; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.78rem; white-space:nowrap;">✖ Filtreyi Kaldır</button>
+                </div>` : '';
+
+            const satirHTML = satirlar.length === 0
+                ? `<tr><td colspan="6" style="text-align:center; padding:24px; color:#999;">Bu aralıkta palet olan müşteri bulunmuyor.</td></tr>`
+                : satirlar.map(m => {
+                    const rowBg = f ? (m[f] > 0 ? '' : 'opacity:0.3;') : '';
+                    return `<tr style="border-bottom:1px solid #eee; ${rowBg}">
+                        <td style="text-align:left; white-space:normal; min-width:200px;"><strong>${m.musteri}</strong></td>
+                        <td style="font-weight:bold; font-size:1.1rem; border-right:2px solid #ddd;">${m.toplam}</td>
+                        <td style="color:#2e7d32; font-weight:${m.g0_7>0?'600':'400'};">${m.g0_7}</td>
+                        <td style="color:#f57f17; font-weight:${m.g8_14>0?'600':'400'};">${m.g8_14}</td>
+                        <td style="color:#c62828; font-weight:bold;">${m.g15_21}</td>
+                        <td style="color:#b71c1c; font-weight:bold; background:#ffcdd2;">${m.g22}</td>
+                    </tr>`;
+                }).join('');
+
+            document.getElementById('toplanacakTableCard').innerHTML = `
+                ${filtreBilgi}
+                <div style="overflow-x:auto;">
+                    <table class="stok-table" style="width:100%; text-align:center; white-space:nowrap;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left; vertical-align:middle;">Müşteri</th>
+                                <th style="border-right:2px solid #ddd; vertical-align:middle;">Toplam</th>
+                                ${thBase('g0_7',  '#e8f5e9', '#2e7d32', '0-7 Gün')}
+                                ${thBase('g8_14', '#fff8e1', '#f57f17', '8-14 Gün')}
+                                ${thBase('g15_21','#ffebee', '#c62828', '15-21 Gün')}
+                                ${thBase('g22',   '#b71c1c', '#fff',    '22+ Gün 🔴')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${satirHTML}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background:#f5f5f5; font-weight:700; border-top:2px solid #ddd;">
+                                <td style="text-align:left; padding:10px 8px;">📊 TOPLAM</td>
+                                <td style="font-size:1.05rem; border-right:2px solid #ddd;">${topToplam}</td>
+                                <td style="color:#2e7d32;">${top07}</td>
+                                <td style="color:#f57f17;">${top814}</td>
+                                <td style="color:#c62828;">${top1521}</td>
+                                <td style="color:#b71c1c; background:#ffcdd2;">${top22}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>`;
         }
 
         async function showKendiVerimliligim(div) {
