@@ -50,15 +50,27 @@ def get_db_connection():
     if database_url:
         urllib.parse.uses_netloc.append('postgres')
         url = urllib.parse.urlparse(database_url)
-        return psycopg2.connect(
+        conn = psycopg2.connect(
             database=url.path[1:], user=url.username,
             password=url.password, host=url.hostname, port=url.port
         )
+        conn._db_type = 'postgres'
+        return conn
     else:
         import sqlite3
         conn = sqlite3.connect('palet_takip.db')
         conn.row_factory = sqlite3.Row
+        conn._db_type = 'sqlite'
         return conn
+
+
+def db_execute(cursor, conn, sql, params=()):
+    """PostgreSQL %s ve SQLite ? uyumlu execute"""
+    if getattr(conn, '_db_type', 'postgres') == 'sqlite':
+        sql = sql.replace('%s', '?').replace('SERIAL PRIMARY KEY', 'INTEGER PRIMARY KEY AUTOINCREMENT').replace('RETURNING id', '')
+    cursor.execute(sql, params)
+    # SQLite RETURNING id desteği yok, lastrowid kullan
+    return cursor
 
 
 def veritabani_olustur():
@@ -295,6 +307,7 @@ def forklift_ekle(current_user):
         return jsonify({'hata': str(e)}), 400
 
 
+@app.route('/api/kullanici_duzenle', methods=['PUT'])
 @token_required
 def kullanici_duzenle(current_user):
     if current_user['tip'] != 'DEPOCU':
@@ -307,9 +320,14 @@ def kullanici_duzenle(current_user):
     cursor = conn.cursor()
     try:
         if sifre:
-            cursor.execute("UPDATE kullanicilar SET kullanici_adi=%s, ad_soyad=%s, sifre=%s, kisitlamalar=%s WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (kullanici_adi, ad_soyad, hash_sifre(sifre), kisitlamalar, uid))
+            db_execute(cursor, conn, "UPDATE kullanicilar SET kullanici_adi=%s, ad_soyad=%s, sifre=%s, kisitlamalar=%s WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (kullanici_adi, ad_soyad, hash_sifre(sifre), kisitlamalar, uid))
         else:
-            cursor.execute("UPDATE kullanicilar SET kullanici_adi=%s, ad_soyad=%s, kisitlamalar=%s WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (kullanici_adi, ad_soyad, kisitlamalar, uid))
+            db_execute(cursor, conn, "UPDATE kullanicilar SET kullanici_adi=%s, ad_soyad=%s, kisitlamalar=%s WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (kullanici_adi, ad_soyad, kisitlamalar, uid))
+        if cursor.rowcount == 0:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({'hata': 'Kullanıcı bulunamadı veya güncellenemedi (id hatalı olabilir)'}), 404
         conn.commit()
         cursor.close()
         conn.close()
@@ -331,8 +349,8 @@ def kullanici_sil(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM stoklar WHERE stok_sahibi_tip='DAGITICI' AND stok_sahibi_id=%s", (uid,))
-        cursor.execute("DELETE FROM kullanicilar WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
+        db_execute(cursor, conn, "DELETE FROM stoklar WHERE stok_sahibi_tip='DAGITICI' AND stok_sahibi_id=%s", (uid,))
+        db_execute(cursor, conn, "DELETE FROM kullanicilar WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
         conn.commit()
         cursor.close()
         conn.close()
