@@ -786,70 +786,76 @@ def rapor_istatistikler(current_user):
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
+    try:
+        # 1. Dağıtıcı performansı: verilen, toplanan, oran
+        cursor.execute("""
+            SELECT u.ad_soyad,
+                   SUM(CASE WHEN h.hareket_tipi = 'DAGITICI_MUSTERI' THEN h.miktar ELSE 0 END) as verilen,
+                   SUM(CASE WHEN h.hareket_tipi = 'MUSTERI_DAGITICI' THEN h.miktar ELSE 0 END) as toplanan
+            FROM kullanicilar u
+            LEFT JOIN hareketler h ON h.yapan_kullanici_id = u.id
+            WHERE u.tip = 'DAGITICI' AND COALESCE(u.aktif,1)=1
+            GROUP BY u.id, u.ad_soyad
+            ORDER BY verilen DESC
+        """)
+        dagitici_perf = []
+        for r in cursor.fetchall():
+            v, t = int(r[1] or 0), int(r[2] or 0)
+            oran = round(t / v * 100, 1) if v > 0 else 0
+            dagitici_perf.append({'ad': r[0], 'verilen': v, 'toplanan': t, 'oran': oran, 'bekleyen': v - t})
 
-    # 1. Dağıtıcı performansı: verilen, toplanan, oran
-    cursor.execute("""
-        SELECT u.ad_soyad,
-               SUM(CASE WHEN h.hareket_tipi = 'DAGITICI_MUSTERI' THEN h.miktar ELSE 0 END) as verilen,
-               SUM(CASE WHEN h.hareket_tipi = 'MUSTERI_DAGITICI' THEN h.miktar ELSE 0 END) as toplanan
-        FROM kullanicilar u
-        LEFT JOIN hareketler h ON h.yapan_kullanici_id = u.id
-        WHERE u.tip = 'DAGITICI' AND COALESCE(u.aktif,1)=1
-        GROUP BY u.id, u.ad_soyad
-        ORDER BY verilen DESC
-    """)
-    dagitici_perf = []
-    for r in cursor.fetchall():
-        v, t = int(r[1] or 0), int(r[2] or 0)
-        oran = round(t / v * 100, 1) if v > 0 else 0
-        dagitici_perf.append({'ad': r[0], 'verilen': v, 'toplanan': t, 'oran': oran, 'bekleyen': v - t})
+        # 2. En çok palet bekleyen müşteriler (top 15)
+        cursor.execute("""
+            SELECT m.musteri_kodu, m.musteri_adi, SUM(s.miktar) as toplam
+            FROM stoklar s JOIN musteriler m ON s.stok_sahibi_id = m.id
+            WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
+            GROUP BY m.id, m.musteri_kodu, m.musteri_adi
+            ORDER BY toplam DESC LIMIT 15
+        """)
+        musteri_stok = [{'kod': r[0], 'ad': r[1], 'miktar': int(r[2])} for r in cursor.fetchall()]
 
-    # 2. En çok palet bekleyen müşteriler (top 15)
-    cursor.execute("""
-        SELECT m.musteri_kodu, m.musteri_adi, SUM(s.miktar) as toplam
-        FROM stoklar s JOIN musteriler m ON s.stok_sahibi_id = m.id
-        WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
-        GROUP BY m.id, m.musteri_kodu, m.musteri_adi
-        ORDER BY toplam DESC LIMIT 15
-    """)
-    musteri_stok = [{'kod': r[0], 'ad': r[1], 'miktar': int(r[2])} for r in cursor.fetchall()]
+        # 3. Genel stok özeti
+        cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip='DEPO'")
+        depo = int(cursor.fetchone()[0] or 0)
+        cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip='DAGITICI'")
+        dagitici_stok = int(cursor.fetchone()[0] or 0)
+        cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip='MUSTERI'")
+        musteri_stok_toplam = int(cursor.fetchone()[0] or 0)
 
-    # 3. Genel stok özeti
-    cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip='DEPO'")
-    depo = int(cursor.fetchone()[0] or 0)
-    cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip='DAGITICI'")
-    dagitici = int(cursor.fetchone()[0] or 0)
-    cursor.execute("SELECT SUM(miktar) FROM stoklar WHERE stok_sahibi_tip='MUSTERI'")
-    musteri = int(cursor.fetchone()[0] or 0)
+        # 4. Palet tipi bazında dağılım
+        cursor.execute("""
+            SELECT pt.palet_adi,
+                   SUM(CASE WHEN s.stok_sahibi_tip='DEPO' THEN s.miktar ELSE 0 END) as depo_adet,
+                   SUM(CASE WHEN s.stok_sahibi_tip='DAGITICI' THEN s.miktar ELSE 0 END) as dagitici_adet,
+                   SUM(CASE WHEN s.stok_sahibi_tip='MUSTERI' THEN s.miktar ELSE 0 END) as musteri_adet,
+                   SUM(s.miktar) as toplam
+            FROM stoklar s JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            GROUP BY pt.id, pt.palet_adi ORDER BY toplam DESC
+        """)
+        palet_dagilim = [{'ad': r[0], 'depo': int(r[1] or 0), 'dagitici': int(r[2] or 0), 'musteri': int(r[3] or 0), 'toplam': int(r[4] or 0)} for r in cursor.fetchall()]
 
-    # 4. Palet tipi bazında dağılım
-    cursor.execute("""
-        SELECT pt.palet_adi,
-               SUM(CASE WHEN s.stok_sahibi_tip='DEPO' THEN s.miktar ELSE 0 END) as depo_adet,
-               SUM(CASE WHEN s.stok_sahibi_tip='DAGITICI' THEN s.miktar ELSE 0 END) as dagitici_adet,
-               SUM(CASE WHEN s.stok_sahibi_tip='MUSTERI' THEN s.miktar ELSE 0 END) as musteri_adet,
-               SUM(s.miktar) as toplam
-        FROM stoklar s JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
-        GROUP BY pt.id, pt.palet_adi ORDER BY toplam DESC
-    """)
-    palet_dagilim = [{'ad': r[0], 'depo': int(r[1] or 0), 'dagitici': int(r[2] or 0), 'musteri': int(r[3] or 0), 'toplam': int(r[4] or 0)} for r in cursor.fetchall()]
+        # 5. Son 30 gün günlük hareket trendi - tarih TEXT olarak saklandığı için SUBSTR ile kes
+        sinir_tarih = (get_now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        cursor.execute("""
+            SELECT SUBSTR(tarih, 1, 10) as gun, SUM(miktar)
+            FROM hareketler
+            WHERE hareket_tipi = 'DAGITICI_MUSTERI'
+              AND tarih >= %s
+            GROUP BY gun ORDER BY gun
+        """, (sinir_tarih,))
+        trend = [{'gun': str(r[0]), 'miktar': int(r[1] or 0)} for r in cursor.fetchall()]
 
-    # 5. Son 30 gün günlük hareket trendi
-    cursor.execute("""
-        SELECT DATE(tarih) as gun, SUM(miktar)
-        FROM hareketler
-        WHERE hareket_tipi = 'DAGITICI_MUSTERI'
-          AND tarih >= CURRENT_DATE - INTERVAL '30 days'
-        GROUP BY gun ORDER BY gun
-    """)
-    trend = [{'gun': str(r[0]), 'miktar': int(r[1] or 0)} for r in cursor.fetchall()]
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({'hata': f'Sorgu hatası: {str(e)}'}), 500
 
     cursor.close()
     conn.close()
     return jsonify({
         'dagitici_perf': dagitici_perf,
         'musteri_stok': musteri_stok,
-        'stok_ozet': {'depo': depo, 'dagitici': dagitici, 'musteri': musteri, 'toplam': depo+dagitici+musteri},
+        'stok_ozet': {'depo': depo, 'dagitici': dagitici_stok, 'musteri': musteri_stok_toplam, 'toplam': depo + dagitici_stok + musteri_stok_toplam},
         'palet_dagilim': palet_dagilim,
         'trend': trend
     })
