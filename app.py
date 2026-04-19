@@ -246,6 +246,7 @@ def dagitici_ekle(current_user):
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
+    kisitlamalar = data.get('kisitlamalar', '')
     if not kullanici_adi or not ad_soyad or not sifre:
         return jsonify({'hata': 'Tüm alanlar gerekli'}), 400
     if len(sifre) < 4:
@@ -253,7 +254,7 @@ def dagitici_ekle(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) VALUES (%s, %s, %s, %s) RETURNING id", (kullanici_adi, hash_sifre(sifre), 'DAGITICI', ad_soyad))
+        cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad, kisitlamalar) VALUES (%s, %s, %s, %s, %s) RETURNING id", (kullanici_adi, hash_sifre(sifre), 'DAGITICI', ad_soyad, kisitlamalar))
         dagitici_id = cursor.fetchone()[0]
         cursor.execute("SELECT id FROM palet_tipleri")
         for palet in cursor.fetchall():
