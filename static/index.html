@@ -205,7 +205,13 @@
             if (token) h.Authorization = `Bearer ${token}`;
             let r = await fetch(`${API_URL}${e}`, { ...o, headers: h });
             if (r.status === 401) { localStorage.removeItem('token'); localStorage.removeItem('user'); renderLogin(); return null; }
-            return { status: r.status, data: await r.json() };
+            try {
+                const data = await r.json();
+                return { status: r.status, data };
+            } catch (err) {
+                console.error('JSON parse hatası:', e, err);
+                return { status: r.status, data: { hata: `Sunucu geçersiz yanıt döndürdü (HTTP ${r.status})` } };
+            }
         }
 
         function renderLogin() {
