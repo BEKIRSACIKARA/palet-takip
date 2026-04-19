@@ -377,6 +377,11 @@ def get_stok(current_user):
     if not tip or kimlik is None:
         return jsonify({'hata': 'tip ve id parametreleri gerekli'}), 400
     
+    # Forklift operatörü sadece DEPO stoğunu görebilir
+    if current_user['tip'] == 'FORKLIFT':
+        tip = 'DEPO'
+        kimlik = 0
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT pt.id, pt.stok_kodu, pt.palet_adi, COALESCE(s.miktar, 0) FROM palet_tipleri pt LEFT JOIN stoklar s ON pt.id = s.palet_tipi_id AND s.stok_sahibi_tip = %s AND s.stok_sahibi_id = %s ORDER BY pt.id", (tip, kimlik))
@@ -667,6 +672,9 @@ def get_hareketler_filtreli(current_user):
     if baslangic and bitis:
         query += " AND DATE(h.tarih) BETWEEN %s AND %s"
         params.extend([baslangic, bitis])
+    if current_user['tip'] == 'FORKLIFT':
+        query += " AND h.yapan_kullanici_id = %s"
+        params.append(current_user['id'])
     query += " ORDER BY h.tarih DESC LIMIT %s"
     params.append(limit)
     cursor.execute(query, params)
@@ -683,6 +691,7 @@ def get_hareketler_filtreli(current_user):
 @app.route('/api/depo_stok_hareket', methods=['POST'])
 @token_required
 def depo_stok_hareket(current_user):
+    # DEPOCU veya FORKLIFT yetkisi
     if current_user['tip'] not in ['DEPOCU', 'FORKLIFT']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
