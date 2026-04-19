@@ -338,12 +338,14 @@ def get_palet_tipleri(current_user):
     return jsonify([{'id': p[0], 'stok_kodu': p[1], 'palet_adi': p[2]} for p in sonuc])
 
 
-@app.route('/api/stok', methods=['GET'])
+# app.py içinde ilgili fonksiyonu bulun
+@app.route('/api/stok_listesi', methods=['GET'])
 @token_required
 def get_stok(current_user):
-    tip, kimlik = request.args.get('tip'), request.args.get('id', type=int)
-    if not tip or kimlik is None:
-        return jsonify({'hata': 'tip ve id parametreleri gerekli'}), 400
+    # Buradaki listeye 'FORKLIFT_OPERATORU' ekledik
+    if current_user['tip'] not in ['DEPOCU', 'DAGITICI', 'FORKLIFT_OPERATORU']:
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    # ... devamı aynı
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT pt.id, pt.stok_kodu, pt.palet_adi, COALESCE(s.miktar, 0) FROM palet_tipleri pt LEFT JOIN stoklar s ON pt.id = s.palet_tipi_id AND s.stok_sahibi_tip = %s AND s.stok_sahibi_id = %s ORDER BY pt.id", (tip, kimlik))
