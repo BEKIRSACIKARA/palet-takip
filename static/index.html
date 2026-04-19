@@ -81,6 +81,27 @@
 </head>
 <body>
     <div id="app"></div>
+
+    <!-- Kullanıcı Modal - statik, her zaman DOM'da -->
+    <div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:2000;">
+        <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;">
+            <h3 id="kullaniciModalTitle" style="margin-bottom:16px;">Kullanıcı</h3>
+            <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div>
+            <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
+            <div class="form-group"><label>Şifre <span id="sifreHint" style="font-size:0.72rem;color:#999;">(değiştirmek için girin)</span></label><input type="password" id="kullanici_sifre" placeholder="Yeni şifre"></div>
+            <div class="form-group">
+                <label>Kısıtlanan Ekranlar <span style="font-size:0.7rem;color:#999;">(virgülle ayır, boş=tam yetki)</span></label>
+                <input type="text" id="kullanici_kisitlamalar" placeholder="örn: raporlar,sistemiSifirla">
+                <div id="kisitlamaHintDiv" style="font-size:0.68rem;color:#aaa;margin-top:5px;line-height:1.6;"></div>
+            </div>
+            <input type="hidden" id="kullanici_id_duzenle">
+            <input type="hidden" id="kullanici_tip_duzenle">
+            <div style="display:flex;gap:10px;margin-top:12px;">
+                <button class="btn" onclick="kaydetKullanici()">Kaydet</button>
+                <button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button>
+            </div>
+        </div>
+    </div>
     <script>
         const API_URL = window.location.origin;
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
@@ -470,7 +491,6 @@
             const forkliftler = k.data.filter(x => x.tip === 'FORKLIFT');
             const tipRenk = { 'DAGITICI': '#2196F3', 'FORKLIFT': '#ff9800' };
             const tipEtiket = { 'DAGITICI': '🚚 Dağıtıcı', 'FORKLIFT': '🏗️ Forklift Op.' };
-            const kisitlamaHint = 'Dağıtıcı için: musteriyeVer, musteridenAl, kendiStok, musteriStoklar, hareketler, toplanacakPaletler, kendiVerimliligim, top10Musteri<br>Forklift için: canliPano, toplanacakPaletler, depoDagiticiTransfer, dagiticiIade, depoMusteri, depoStok, dagiticiStoklar, musteriStoklar, excelYukle, excelExport, stokExcelYukle, depoStokDuzenle, raporlar, paletTipleri, yedekleme, sistemiSifirla, hareketler';
             const buildTable = (liste) => liste.length === 0 ? '<div style="color:#999;font-size:0.85rem;padding:8px 0;">Kayıt yok</div>' :
                 `<table class="stok-table"><thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Tip</th><th>Kısıtlamalar</th><th>İşlemler</th></thead><tbody>
                 ${liste.map(u => `<tr>
@@ -483,7 +503,6 @@
                     </td>
                 </tr>`).join('')}
                 </tbody></table>`;
-
             div.innerHTML = `
             <div class="card">
                 <div class="card-title">🚚 Dağıtıcılar</div>
@@ -494,69 +513,57 @@
                 <div class="card-title">🏗️ Forklift Operatörleri</div>
                 <button class="btn" style="margin-bottom:12px;background:#ff9800;" onclick="showYeniKullaniciModal('FORKLIFT')">+ Yeni Forklift Operatörü Ekle</button>
                 ${buildTable(forkliftler)}
-            </div>
-            <div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;">
-                <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;">
-                    <h3 id="kullaniciModalTitle">Kullanıcı</h3>
-                    <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div>
-                    <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
-                    <div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div>
-                    <div class="form-group">
-                        <label>Kısıtlanan Ekranlar <span style="font-size:0.7rem;color:#999;">(virgülle ayır)</span></label>
-                        <input type="text" id="kullanici_kisitlamalar" placeholder="örn: raporlar,sistemiSifirla">
-                        <div style="font-size:0.68rem;color:#aaa;margin-top:5px;line-height:1.5;" id="kisitlamaHintDiv">${kisitlamaHint}</div>
-                    </div>
-                    <input type="hidden" id="kullanici_id_duzenle">
-                    <input type="hidden" id="kullanici_tip_duzenle">
-                    <div style="display:flex;gap:10px;margin-top:8px;">
-                        <button class="btn" onclick="kaydetKullanici()">Kaydet</button>
-                        <button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button>
-                    </div>
-                </div>
             </div>`;
         }
+        const KISITLAMA_HINT = {
+            DAGITICI: 'Kullanılabilir id\'ler: musteriyeVer, musteridenAl, kendiStok, musteriStoklar, hareketler, toplanacakPaletler, kendiVerimliligim, top10Musteri',
+            FORKLIFT: 'Kullanılabilir id\'ler: canliPano, toplanacakPaletler, depoDagiticiTransfer, dagiticiIade, depoMusteri, depoStok, dagiticiStoklar, musteriStoklar, excelYukle, excelExport, stokExcelYukle, depoStokDuzenle, raporlar, paletTipleri, yedekleme, sistemiSifirla, hareketler'
+        };
         function showYeniKullaniciModal(tip) {
-            const etiket = tip === 'FORKLIFT' ? 'Yeni Forklift Operatörü Ekle' : 'Yeni Dağıtıcı Ekle';
-            document.getElementById('kullaniciModalTitle').innerText = etiket;
+            document.getElementById('kullaniciModalTitle').innerText = tip === 'FORKLIFT' ? 'Yeni Forklift Operatörü Ekle' : 'Yeni Dağıtıcı Ekle';
             document.getElementById('kullanici_adi_duzenle').value = '';
             document.getElementById('ad_soyad_duzenle').value = '';
             document.getElementById('kullanici_sifre').value = '';
             document.getElementById('kullanici_id_duzenle').value = '';
             document.getElementById('kullanici_kisitlamalar').value = '';
             document.getElementById('kullanici_tip_duzenle').value = tip || 'DAGITICI';
+            document.getElementById('sifreHint').style.display = 'none';
+            document.getElementById('kisitlamaHintDiv').innerHTML = KISITLAMA_HINT[tip] || '';
             document.getElementById('kullaniciModal').style.display = 'flex';
         }
         function duzenleKullanici(id, ad, soyad, kisitlamalar, tip) {
-            const etiket = tip === 'FORKLIFT' ? 'Forklift Operatörü Düzenle' : 'Dağıtıcı Düzenle';
-            document.getElementById('kullaniciModalTitle').innerText = etiket;
+            document.getElementById('kullaniciModalTitle').innerText = tip === 'FORKLIFT' ? 'Forklift Operatörü Düzenle' : 'Dağıtıcı Düzenle';
             document.getElementById('kullanici_adi_duzenle').value = ad;
             document.getElementById('ad_soyad_duzenle').value = soyad;
             document.getElementById('kullanici_sifre').value = '';
-            document.getElementById('kullanici_id_duzenle').value = id;
+            document.getElementById('kullanici_id_duzenle').value = String(id);
             document.getElementById('kullanici_kisitlamalar').value = kisitlamalar || '';
             document.getElementById('kullanici_tip_duzenle').value = tip || 'DAGITICI';
+            document.getElementById('sifreHint').style.display = 'inline';
+            document.getElementById('kisitlamaHintDiv').innerHTML = KISITLAMA_HINT[tip] || '';
             document.getElementById('kullaniciModal').style.display = 'flex';
         }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
         async function kaydetKullanici() {
-            let id = document.getElementById('kullanici_id_duzenle').value;
-            let ad = document.getElementById('kullanici_adi_duzenle').value;
-            let soyad = document.getElementById('ad_soyad_duzenle').value;
-            let s = document.getElementById('kullanici_sifre').value;
-            let kisitlamalar = document.getElementById('kullanici_kisitlamalar').value.trim();
-            let tip = document.getElementById('kullanici_tip_duzenle').value || 'DAGITICI';
+            const idStr = document.getElementById('kullanici_id_duzenle').value;
+            const id = idStr ? parseInt(idStr) : null;
+            const ad = document.getElementById('kullanici_adi_duzenle').value.trim();
+            const soyad = document.getElementById('ad_soyad_duzenle').value.trim();
+            const s = document.getElementById('kullanici_sifre').value;
+            const kisitlamalar = document.getElementById('kullanici_kisitlamalar').value.trim();
+            const tip = document.getElementById('kullanici_tip_duzenle').value || 'DAGITICI';
             if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; }
             if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; }
             let r;
             if (id) {
-                let body = { id: parseInt(id), kullanici_adi: ad, ad_soyad: soyad, kisitlamalar };
+                const body = { id, kullanici_adi: ad, ad_soyad: soyad, kisitlamalar };
                 if (s) body.sifre = s;
                 r = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) });
             } else {
                 const endpoint = tip === 'FORKLIFT' ? '/api/forklift_ekle' : '/api/dagitici_ekle';
                 r = await apiCall(endpoint, { method: 'POST', body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s, kisitlamalar }) });
             }
-            if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); kapatKullaniciModal(); goBack(); }
+            if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj, 'success'); kapatKullaniciModal(); goBack(); }
             else showToast(r?.data?.hata || 'İşlem başarısız', 'error');
         }
         async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz?')) return; let r = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Silme başarısız', 'error'); }
