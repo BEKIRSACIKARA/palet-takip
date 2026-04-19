@@ -1,12 +1,10 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
-import bcrypt
+import hashlib
 import jwt
 import datetime
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 import os
-import logging
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 from io import BytesIO
@@ -23,16 +21,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 import zipfile
 import csv
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 app = Flask(__name__, static_folder='static')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'palet-takip-gizli-anahtar-degistirin')
-
-_allowed_origins = os.environ.get('ALLOWED_ORIGINS', '*')
-if _allowed_origins != '*':
-    _allowed_origins = [o.strip() for o in _allowed_origins.split(',')]
-CORS(app, origins=_allowed_origins)
+app.config['SECRET_KEY'] = 'palet-takip-gizli-anahtar-2026'
+CORS(app)
 
 PALET_TIPLERI = [("P001", "Euro Palet"), ("P002", "Sanayi Paleti"), ("P003", "Plastik Palet")]
 SAHIP_TIP_DEPO = "DEPO"
@@ -45,82 +36,13 @@ HAREKET_MUSTERI_DAGITICI = "MUSTERI_DAGITICI"
 HAREKET_DAGITICI_DEPO = "DAGITICI_DEPO"
 HAREKET_DEPO_STOK = "DEPO_STOK_HAREKET"
 
-# Forklift kullanicisi icin tanimli yetki anahtarlari
-FORKLIFT_YETKILER = [
-    ("transfer_depo_dagitici",   "Transfer: Depo -> Dagitici/Musteri"),
-    ("transfer_dagitici_depo",   "Transfer: Dagitici/Musteri -> Depo"),
-    ("depo_stok_hareket",        "Depo stok giris/cikis"),
-    ("musteri_ekle",             "Musteri ekle"),
-    ("musteri_excel_yukle",      "Musteri Excel yukle"),
-    ("dagitici_ekle",            "Dagitici ekle"),
-    ("rapor_hareketler",         "Rapor: Hareketler"),
-    ("rapor_stoklar",            "Rapor: Stoklar"),
-    ("rapor_istatistikler",      "Rapor: Istatistikler"),
-    ("rapor_dashboard",          "Rapor: Dashboard"),
-    ("rapor_export",             "Rapor disari aktar"),
-    ("yedekle",                  "Yedek al"),
-    ("yedekleme_ayarla",         "Yedekleme ayarlari"),
-    ("hareketleri_sifirla",      "Hareketleri sifirla"),
-    ("stok_excel_yukle",         "Stok Excel yukle"),
-    ("makbuz_goruntule",         "Makbuz goruntule/PDF"),
-]
-
-ISTANBUL_TZ = ZoneInfo("Europe/Istanbul")
-
+# --- YARDIMCI FONKSİYON: TÜRKİYE SAATİNİ GETİR ---
 def get_now():
-    return datetime.now(tz=ISTANBUL_TZ).replace(tzinfo=None)
+    return datetime.now() + timedelta(hours=3)
 
-
-import hashlib
 
 def hash_sifre(sifre):
-    return bcrypt.hashpw(sifre.encode(), bcrypt.gensalt()).decode()
-
-def _sha256_hash(sifre):
     return hashlib.sha256(sifre.encode()).hexdigest()
-
-def sifre_dogrula(sifre, hashed):
-    """bcrypt veya eski SHA-256 hash'i dogrular."""
-    try:
-        if hashed.startswith('$2b$') or hashed.startswith('$2a$'):
-            return bcrypt.checkpw(sifre.encode(), hashed.encode())
-        else:
-            return hashed == _sha256_hash(sifre)
-    except Exception:
-        return False
-
-
-def forklift_yetkisi_var_mi(kullanici_id, yetki_kodu):
-    """FORKLIFT kullanicisinin belirtilen yetkiye sahip olup olmadigini kontrol eder."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT aktif FROM kullanici_yetkileri WHERE kullanici_id = %s AND yetki_kodu = %s",
-        (kullanici_id, yetki_kodu)
-    )
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if row is None:
-        return True  # Kayit yoksa varsayilan olarak izinli (yeni eklenen yetkiler)
-    return bool(row[0])
-
-
-def forklift_yetkisi_gerektir(yetki_kodu):
-    """Decorator: DEPOCU her zaman gecebilir, FORKLIFT yetki tablosuna gore kontrol edilir."""
-    def decorator(f):
-        from functools import wraps
-        @wraps(f)
-        def wrapper(current_user, *args, **kwargs):
-            if current_user['tip'] == 'DEPOCU':
-                return f(current_user, *args, **kwargs)
-            if current_user['tip'] == 'FORKLIFT':
-                if not forklift_yetkisi_var_mi(current_user['id'], yetki_kodu):
-                    return jsonify({'hata': 'Bu isleme yetkiniz kaldirilmistir. Lutfen Depocu ile iletisime gecin.'}), 403
-                return f(current_user, *args, **kwargs)
-            return jsonify({'hata': 'Yetkisiz erisim'}), 403
-        return wrapper
-    return decorator
 
 
 def get_db_connection():
@@ -142,7 +64,12 @@ def get_db_connection():
 def veritabani_olustur():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS kullanicilar (id SERIAL PRIMARY KEY, kullanici_adi TEXT UNIQUE NOT NULL, sifre TEXT NOT NULL, tip TEXT NOT NULL, ad_soyad TEXT NOT NULL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS kullanicilar (id SERIAL PRIMARY KEY, kullanici_adi TEXT UNIQUE NOT NULL, sifre TEXT NOT NULL, tip TEXT NOT NULL, ad_soyad TEXT NOT NULL, kisitlamalar TEXT DEFAULT \'\')''')
+    try:
+        cursor.execute("ALTER TABLE kullanicilar ADD COLUMN kisitlamalar TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        conn.rollback()
     cursor.execute('''CREATE TABLE IF NOT EXISTS musteriler (id SERIAL PRIMARY KEY, musteri_kodu TEXT UNIQUE NOT NULL, musteri_adi TEXT NOT NULL, tabela_adi TEXT NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS palet_tipleri (id SERIAL PRIMARY KEY, stok_kodu TEXT UNIQUE NOT NULL, palet_adi TEXT NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS stoklar (id SERIAL PRIMARY KEY, stok_sahibi_tip TEXT NOT NULL, stok_sahibi_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, miktar INTEGER DEFAULT 0, FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id), UNIQUE(stok_sahibi_tip, stok_sahibi_id, palet_tipi_id))''')
@@ -150,23 +77,17 @@ def veritabani_olustur():
     try:
         cursor.execute("ALTER TABLE hareketler ADD COLUMN makbuz_no TEXT")
         conn.commit()
-    except Exception as e:
-        logger.info("makbuz_no sütunu zaten mevcut veya eklenemedi: %s", e)
+    except Exception:
         conn.rollback()
     cursor.execute('''CREATE TABLE IF NOT EXISTS makbuzlar (id SERIAL PRIMARY KEY, makbuz_no TEXT UNIQUE NOT NULL, tarih TEXT NOT NULL, islem_tipi TEXT NOT NULL, gonderen_tip TEXT NOT NULL, gonderen_id INTEGER NOT NULL, gonderen_adi TEXT NOT NULL, alan_tip TEXT NOT NULL, alan_id INTEGER NOT NULL, alan_adi TEXT NOT NULL, toplam_miktar INTEGER NOT NULL, aciklama TEXT, yapan_kullanici_id INTEGER NOT NULL, yapan_kullanici_adi TEXT NOT NULL, FOREIGN KEY (yapan_kullanici_id) REFERENCES kullanicilar(id))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS makbuz_detaylari (id SERIAL PRIMARY KEY, makbuz_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, stok_kodu TEXT NOT NULL, palet_adi TEXT NOT NULL, miktar INTEGER NOT NULL, FOREIGN KEY (makbuz_id) REFERENCES makbuzlar(id), FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS ayarlar (key TEXT PRIMARY KEY, value TEXT NOT NULL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS kullanici_yetkileri (
-        id SERIAL PRIMARY KEY,
-        kullanici_id INTEGER NOT NULL REFERENCES kullanicilar(id) ON DELETE CASCADE,
-        yetki_kodu TEXT NOT NULL,
-        aktif BOOLEAN NOT NULL DEFAULT TRUE,
-        UNIQUE(kullanici_id, yetki_kodu)
-    )''')
     conn.commit()
     for stok_kodu, palet_adi in PALET_TIPLERI:
         cursor.execute("INSERT INTO palet_tipleri (stok_kodu, palet_adi) SELECT %s, %s WHERE NOT EXISTS (SELECT 1 FROM palet_tipleri WHERE stok_kodu = %s)", (stok_kodu, palet_adi, stok_kodu))
-    cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) SELECT %s, %s, %s, %s WHERE NOT EXISTS (SELECT 1 FROM kullanicilar WHERE kullanici_adi = %s)", ('depocu', hash_sifre('1234'), 'DEPOCU', 'Ana Depocu', 'depocu'))
+    cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) SELECT %s, %s, %s, %s WHERE NOT EXISTS (SELECT 1 FROM kullanicilar WHERE kullanici_adi = %s)", ('depocu', hash_sifre('12345'), 'DEPOCU', 'Ana Depocu', 'depocu'))
+    cursor.execute("UPDATE kullanicilar SET sifre = %s WHERE kullanici_adi = 'depocu'", (hash_sifre('12345'),))
+
     conn.commit()
     cursor.execute('SELECT id FROM palet_tipleri')
     for palet in cursor.fetchall():
@@ -221,15 +142,13 @@ def hareket_kaydet(yapan_kullanici_id, hareket_tipi, gonderen_tip, gonderen_id, 
 
 
 def makbuz_no_olustur():
-    # Gerçek makbuz numarası makbuz_kaydet içinde RETURNING id ile üretilir.
-    # Bu fonksiyon artık kullanılmıyor; geriye dönük uyumluluk için bırakıldı.
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM makbuzlar")
-        yeni_no = cursor.fetchone()[0]
-    except Exception as e:
-        logger.exception("makbuz_no_olustur hatası: %s", e)
+        cursor.execute("SELECT MAX(id) FROM makbuzlar")
+        son_id = cursor.fetchone()[0]
+        yeni_no = (son_id + 1) if son_id else 1
+    except:
         yeni_no = 1
     finally:
         cursor.close()
@@ -240,12 +159,10 @@ def makbuz_no_olustur():
 def makbuz_kaydet(transfer_data):
     conn = get_db_connection()
     cursor = conn.cursor()
+    makbuz_no = makbuz_no_olustur()
     tarih = get_now().strftime("%d.%m.%Y %H:%M:%S")
     cursor.execute("INSERT INTO makbuzlar (makbuz_no, tarih, islem_tipi, gonderen_tip, gonderen_id, gonderen_adi, alan_tip, alan_id, alan_adi, toplam_miktar, aciklama, yapan_kullanici_id, yapan_kullanici_adi) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                   ('TEMP', tarih, transfer_data['islem_tipi'], transfer_data['gonderen_tip'], transfer_data['gonderen_id'], transfer_data['gonderen_adi'], transfer_data['alan_tip'], transfer_data['alan_id'], transfer_data['alan_adi'], transfer_data['toplam_miktar'], transfer_data['aciklama'], transfer_data['yapan_id'], transfer_data['yapan_adi']))
-    makbuz_id = cursor.fetchone()[0]
-    makbuz_no = f"PLT{str(makbuz_id).zfill(5)}"
-    cursor.execute("UPDATE makbuzlar SET makbuz_no = %s WHERE id = %s", (makbuz_no, makbuz_id))
+                   (makbuz_no, tarih, transfer_data['islem_tipi'], transfer_data['gonderen_tip'], transfer_data['gonderen_id'], transfer_data['gonderen_adi'], transfer_data['alan_tip'], transfer_data['alan_id'], transfer_data['alan_adi'], transfer_data['toplam_miktar'], transfer_data['aciklama'], transfer_data['yapan_id'], transfer_data['yapan_adi']))
     makbuz_id = cursor.fetchone()[0]
     for detay in transfer_data['detaylar']:
         cursor.execute("INSERT INTO makbuz_detaylari (makbuz_id, palet_tipi_id, stok_kodu, palet_adi, miktar) VALUES (%s, %s, %s, %s, %s)", (makbuz_id, detay['palet_tipi_id'], detay['stok_kodu'], detay['palet_adi'], detay['miktar']))
@@ -265,10 +182,7 @@ def token_required(f):
             token = token.replace('Bearer ', '')
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             current_user = data
-        except jwt.ExpiredSignatureError:
-            return jsonify({'hata': 'Token süresi dolmuş'}), 401
-        except jwt.InvalidTokenError as e:
-            logger.warning("Geçersiz token: %s", e)
+        except:
             return jsonify({'hata': 'Geçersiz token'}), 401
         return f(current_user, *args, **kwargs)
     return decorated
@@ -284,24 +198,13 @@ def login():
     data = request.get_json()
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, kullanici_adi, tip, ad_soyad, sifre FROM kullanicilar WHERE kullanici_adi = %s", (data.get('kullanici_adi'),))
+    cursor.execute("SELECT id, kullanici_adi, tip, ad_soyad, COALESCE(kisitlamalar, '') FROM kullanicilar WHERE kullanici_adi = %s AND sifre = %s", (data.get('kullanici_adi'), hash_sifre(data.get('sifre'))))
     kullanici = cursor.fetchone()
-    if kullanici and sifre_dogrula(data.get('sifre', ''), kullanici[4]):
-        # Eski SHA-256 hash'i otomatik olarak bcrypt'e geçir
-        if not (kullanici[4].startswith('$2b$') or kullanici[4].startswith('$2a$')):
-            try:
-                yeni_hash = hash_sifre(data.get('sifre', ''))
-                cursor.execute("UPDATE kullanicilar SET sifre = %s WHERE id = %s", (yeni_hash, kullanici[0]))
-                conn.commit()
-                logger.info("Kullanıcı %s bcrypt'e geçirildi.", kullanici[1])
-            except Exception as e:
-                logger.warning("Hash geçişi başarısız: %s", e)
-        cursor.close()
-        conn.close()
-        token = jwt.encode({'id': kullanici[0], 'kullanici_adi': kullanici[1], 'tip': kullanici[2], 'ad_soyad': kullanici[3], 'exp': datetime.utcnow() + timedelta(hours=24)}, app.config['SECRET_KEY'], algorithm='HS256')
-        return jsonify({'success': True, 'token': token, 'kullanici': {'id': kullanici[0], 'kullanici_adi': kullanici[1], 'tip': kullanici[2], 'ad_soyad': kullanici[3]}})
     cursor.close()
     conn.close()
+    if kullanici:
+        token = jwt.encode({'id': kullanici[0], 'kullanici_adi': kullanici[1], 'tip': kullanici[2], 'ad_soyad': kullanici[3], 'kisitlamalar': kullanici[4], 'exp': datetime.utcnow() + timedelta(hours=24)}, app.config['SECRET_KEY'], algorithm='HS256')
+        return jsonify({'success': True, 'token': token, 'kullanici': {'id': kullanici[0], 'kullanici_adi': kullanici[1], 'tip': kullanici[2], 'ad_soyad': kullanici[3], 'kisitlamalar': kullanici[4]}})
     return jsonify({'success': False, 'hata': 'Hatalı kullanıcı adı veya şifre'}), 401
 
 
@@ -309,14 +212,14 @@ def login():
 @token_required
 def get_kullanici_listesi(current_user):
     if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip IN ('DAGITICI', 'FORKLIFT') ORDER BY ad_soyad")
+    cursor.execute("SELECT id, kullanici_adi, ad_soyad, COALESCE(kisitlamalar, '') FROM kullanicilar WHERE tip = 'DAGITICI' ORDER BY ad_soyad")
     sonuc = cursor.fetchall()
     cursor.close()
     conn.close()
-    return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
+    return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2], 'kisitlamalar': k[3]} for k in sonuc])
 
 
 @app.route('/api/dagitici_listesi', methods=['GET'])
@@ -333,10 +236,9 @@ def get_dagitici_listesi(current_user):
 
 @app.route('/api/dagitici_ekle', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('dagitici_ekle')
 def dagitici_ekle(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
     if not kullanici_adi or not ad_soyad or not sifre:
@@ -361,102 +263,55 @@ def dagitici_ekle(current_user):
         return jsonify({'hata': str(e)}), 400
 
 
-@app.route('/api/forklift_ekle', methods=['POST'])
+@app.route('/api/kullanici_duzenle', methods=['PUT'])
 @token_required
-def forklift_ekle(current_user):
+def kullanici_duzenle(current_user):
     if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
-    kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
-    if not kullanici_adi or not ad_soyad or not sifre:
-        return jsonify({'hata': 'Tum alanlar gerekli'}), 400
-    if len(sifre) < 4:
-        return jsonify({'hata': 'Sifre en az 4 karakter olmali'}), 400
+    uid, kullanici_adi, ad_soyad, sifre, kisitlamalar = data.get('id'), data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre'), data.get('kisitlamalar', '')
+    if not uid or not kullanici_adi or not ad_soyad:
+        return jsonify({'hata': 'id, kullanici_adi ve ad_soyad gerekli'}), 400
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            "INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) VALUES (%s, %s, %s, %s) RETURNING id",
-            (kullanici_adi, hash_sifre(sifre), 'FORKLIFT', ad_soyad)
-        )
-        forklift_id = cursor.fetchone()[0]
-        # Tum yetkiler varsayilan olarak aktif (kayit yok = izinli mantigi)
+        if sifre:
+            cursor.execute("UPDATE kullanicilar SET kullanici_adi=%s, ad_soyad=%s, sifre=%s, kisitlamalar=%s WHERE id=%s AND tip='DAGITICI'", (kullanici_adi, ad_soyad, hash_sifre(sifre), kisitlamalar, uid))
+        else:
+            cursor.execute("UPDATE kullanicilar SET kullanici_adi=%s, ad_soyad=%s, kisitlamalar=%s WHERE id=%s AND tip='DAGITICI'", (kullanici_adi, ad_soyad, kisitlamalar, uid))
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({'success': True, 'id': forklift_id, 'mesaj': 'Forklift kullanicisi eklendi'})
+        return jsonify({'success': True, 'mesaj': 'Kullanıcı güncellendi'})
     except Exception as e:
-        conn.rollback()
         cursor.close()
         conn.close()
         return jsonify({'hata': str(e)}), 400
 
 
-@app.route('/api/forklift_listesi', methods=['GET'])
+@app.route('/api/kullanici_sil', methods=['DELETE'])
 @token_required
-def forklift_listesi(current_user):
+def kullanici_sil(current_user):
     if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip = 'FORKLIFT' ORDER BY ad_soyad")
-    sonuc = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
-
-
-@app.route('/api/forklift_yetkileri/<int:kullanici_id>', methods=['GET'])
-@token_required
-def forklift_yetkileri_getir(current_user, kullanici_id):
-    if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT yetki_kodu, aktif FROM kullanici_yetkileri WHERE kullanici_id = %s", (kullanici_id,))
-    kayitli = {row[0]: bool(row[1]) for row in cursor.fetchall()}
-    cursor.close()
-    conn.close()
-    # Tum yetkiler listesi - kaydi olmayan = varsayilan True
-    yetkiler = []
-    for kod, aciklama in FORKLIFT_YETKILER:
-        yetkiler.append({'kod': kod, 'aciklama': aciklama, 'aktif': kayitli.get(kod, True)})
-    return jsonify(yetkiler)
-
-
-@app.route('/api/forklift_yetkileri/<int:kullanici_id>', methods=['POST'])
-@token_required
-def forklift_yetkileri_guncelle(current_user, kullanici_id):
-    if current_user['tip'] != 'DEPOCU':
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
-    data = request.get_json()
-    yetkiler = data.get('yetkiler', {})  # {yetki_kodu: True/False}
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    uid = request.args.get('id', type=int)
+    if not uid:
+        return jsonify({'hata': 'id gerekli'}), 400
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT tip FROM kullanicilar WHERE id = %s", (kullanici_id,))
-        row = cursor.fetchone()
-        if not row or row[0] != 'FORKLIFT':
-            return jsonify({'hata': 'Gecersiz forklift kullanicisi'}), 400
-        for kod, aktif in yetkiler.items():
-            gecerli_kodlar = [k for k, _ in FORKLIFT_YETKILER]
-            if kod not in gecerli_kodlar:
-                continue
-            cursor.execute(
-                "INSERT INTO kullanici_yetkileri (kullanici_id, yetki_kodu, aktif) VALUES (%s, %s, %s) "
-                "ON CONFLICT (kullanici_id, yetki_kodu) DO UPDATE SET aktif = EXCLUDED.aktif",
-                (kullanici_id, kod, bool(aktif))
-            )
+        cursor.execute("DELETE FROM stoklar WHERE stok_sahibi_tip='DAGITICI' AND stok_sahibi_id=%s", (uid,))
+        cursor.execute("DELETE FROM kullanicilar WHERE id=%s AND tip='DAGITICI'", (uid,))
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({'success': True, 'mesaj': 'Yetkiler guncellendi'})
+        return jsonify({'success': True, 'mesaj': 'Dağıtıcı silindi'})
     except Exception as e:
-        conn.rollback()
         cursor.close()
         conn.close()
-        logger.exception("Yetki guncelleme hatasi: %s", e)
-        return jsonify({'hata': str(e)}), 500
+        return jsonify({'hata': str(e)}), 400
+
+
 
 
 @app.route('/api/tum_musteriler', methods=['GET'])
@@ -473,10 +328,9 @@ def get_tum_musteriler(current_user):
 
 @app.route('/api/musteri_ekle', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('musteri_ekle')
 def musteri_ekle(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     musteri_kodu, musteri_adi, tabela_adi = data.get('musteri_kodu'), data.get('musteri_adi'), data.get('tabela_adi')
     if not musteri_kodu or not musteri_adi or not tabela_adi:
@@ -581,15 +435,7 @@ def transfer_yap(current_user):
         conn.close()
         return jsonify({'hata': 'Geçersiz palet tipi'}), 400
     transfer_data = {'islem_tipi': hareket_tipi, 'yapan_id': kullanici_id, 'yapan_adi': f"{kullanici_adi} ({kullanici_kadi})", 'detaylar': [], 'toplam_miktar': miktar}
-    if kullanici_tip in ('DEPOCU', 'FORKLIFT'):
-        if kullanici_tip == 'FORKLIFT' and hareket_tipi == 'DEPO_DAGITICI' and not forklift_yetkisi_var_mi(kullanici_id, 'transfer_depo_dagitici'):
-            cursor.close()
-            conn.close()
-            return jsonify({'hata': 'Bu transfer turune yetkiniz kaldirilmistir.'}), 403
-        if kullanici_tip == 'FORKLIFT' and hareket_tipi == 'DAGITICI_DEPO' and not forklift_yetkisi_var_mi(kullanici_id, 'transfer_dagitici_depo'):
-            cursor.close()
-            conn.close()
-            return jsonify({'hata': 'Bu transfer turune yetkiniz kaldirilmistir.'}), 403
+    if kullanici_tip == 'DEPOCU':
         if hareket_tipi == 'DEPO_DAGITICI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             alan_tip, alan_id = None, alici_id
@@ -666,36 +512,17 @@ def transfer_yap(current_user):
         cursor.close()
         conn.close()
         return jsonify({'hata': f'Yetersiz stok! Mevcut: {mevcut_gonderen}'}), 400
-    # Atomik transfer: her iki stok güncellemesi aynı transaction içinde
-    transfer_conn = get_db_connection()
-    transfer_cursor = transfer_conn.cursor()
-    try:
-        transfer_cursor.execute(
-            "UPDATE stoklar SET miktar = miktar - %s WHERE stok_sahibi_tip = %s AND stok_sahibi_id = %s AND palet_tipi_id = %s AND miktar >= %s",
-            (miktar, gonderen_tip, gonderen_id, palet_tipi_id, miktar)
-        )
-        if transfer_cursor.rowcount == 0:
-            transfer_conn.rollback()
-            transfer_cursor.close()
-            transfer_conn.close()
-            cursor.close()
-            conn.close()
-            return jsonify({'hata': 'Yetersiz stok veya stok kaydı bulunamadı!'}), 400
-        transfer_cursor.execute(
-            "INSERT INTO stoklar (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id, miktar) VALUES (%s, %s, %s, %s) ON CONFLICT (stok_sahibi_tip, stok_sahibi_id, palet_tipi_id) DO UPDATE SET miktar = stoklar.miktar + EXCLUDED.miktar",
-            (alan_tip, alan_id, palet_tipi_id, miktar)
-        )
-        transfer_conn.commit()
-    except Exception as e:
-        transfer_conn.rollback()
-        transfer_cursor.close()
-        transfer_conn.close()
+    basarili, hata = stok_guncelle(gonderen_tip, gonderen_id, palet_tipi_id, -miktar)
+    if not basarili:
         cursor.close()
         conn.close()
-        logger.exception("Transfer sırasında hata: %s", e)
-        return jsonify({'hata': 'Transfer sırasında bir hata oluştu.'}), 500
-    transfer_cursor.close()
-    transfer_conn.close()
+        return jsonify({'hata': hata}), 400
+    basarili, hata = stok_guncelle(alan_tip, alan_id, palet_tipi_id, +miktar)
+    if not basarili:
+        stok_guncelle(gonderen_tip, gonderen_id, palet_tipi_id, +miktar)
+        cursor.close()
+        conn.close()
+        return jsonify({'hata': hata}), 400
     makbuz_no = makbuz_kaydet(transfer_data)
     hareket_kaydet(kullanici_id, hareket_tipi, gonderen_tip, gonderen_id, alan_tip, alan_id, palet_tipi_id, miktar, aciklama, makbuz_no)
     cursor.close()
@@ -705,7 +532,6 @@ def transfer_yap(current_user):
 
 @app.route('/api/makbuz/<makbuz_no>', methods=['GET'])
 @token_required
-@forklift_yetkisi_gerektir('makbuz_goruntule')
 def makbuz_goster(current_user, makbuz_no):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -724,7 +550,6 @@ def makbuz_goster(current_user, makbuz_no):
 
 @app.route('/api/makbuz/pdf/<makbuz_no>', methods=['GET'])
 @token_required
-@forklift_yetkisi_gerektir('makbuz_goruntule')
 def makbuz_pdf(current_user, makbuz_no):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -800,7 +625,7 @@ def get_hareketler(current_user):
     limit = request.args.get('limit', 50, type=int)
     conn = get_db_connection()
     cursor = conn.cursor()
-    if current_user['tip'] in ('DEPOCU', 'FORKLIFT'):
+    if current_user['tip'] == 'DEPOCU':
         cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id ORDER BY h.tarih DESC LIMIT %s", (limit,))
     else:
         cursor.execute("SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id WHERE h.gonderen_id = %s OR h.alan_id = %s ORDER BY h.tarih DESC LIMIT %s", (current_user['id'], current_user['id'], limit))
@@ -851,10 +676,9 @@ def get_hareketler_filtreli(current_user):
 
 @app.route('/api/depo_stok_hareket', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('depo_stok_hareket')
 def depo_stok_hareket(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     palet_tipi_id, miktar, islem_tipi, aciklama = data.get('palet_tipi_id'), data.get('miktar'), data.get('islem_tipi'), data.get('aciklama', '')
     if not palet_tipi_id or not miktar or not islem_tipi:
@@ -893,10 +717,9 @@ def depo_stok_hareket(current_user):
 
 @app.route('/api/rapor/istatistikler', methods=['GET'])
 @token_required
-@forklift_yetkisi_gerektir('rapor_istatistikler')
 def rapor_istatistikler(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT u.kullanici_adi, u.ad_soyad, COUNT(*) FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id WHERE u.tip = 'DAGITICI' GROUP BY u.id ORDER BY COUNT(*) DESC LIMIT 10")
@@ -910,10 +733,9 @@ def rapor_istatistikler(current_user):
 
 @app.route('/api/rapor/export', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('rapor_export')
 def rapor_export(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     rapor_tipi, baslangic, bitis = data.get('rapor_tipi'), data.get('baslangic_tarihi'), data.get('bitis_tarihi')
     conn = get_db_connection()
@@ -1000,10 +822,9 @@ def rapor_export(current_user):
 
 @app.route('/api/rapor/pdf', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('rapor_export')
 def rapor_pdf(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     rapor_tipi = data.get('rapor_tipi', 'hareketler')
     baslangic = data.get('baslangic_tarihi')
@@ -1086,10 +907,9 @@ def rapor_pdf(current_user):
 
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('musteri_excel_yukle')
 def musteri_excel_yukle(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     if 'file' not in request.files:
         return jsonify({'hata': 'Dosya bulunamadı'}), 400
     file = request.files['file']
@@ -1145,10 +965,9 @@ def musteri_excel_yukle(current_user):
 
 @app.route('/api/yedekle', methods=['GET'])
 @token_required
-@forklift_yetkisi_gerektir('yedekle')
 def yedekle(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
     buffer = BytesIO()
@@ -1172,10 +991,9 @@ def yedekle(current_user):
 
 @app.route('/api/yedekleme_ayarla', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('yedekleme_ayarla')
 def yedekleme_ayarla(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     aktif, periyot, saat = data.get('aktif', False), data.get('periyot', 'gunluk'), data.get('saat', '03:00')
     conn = get_db_connection()
@@ -1191,10 +1009,9 @@ def yedekleme_ayarla(current_user):
 
 @app.route('/api/yedekleme_ayarlari', methods=['GET'])
 @token_required
-@forklift_yetkisi_gerektir('yedekleme_ayarla')
 def yedekleme_ayarlari(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT key, value FROM ayarlar WHERE key LIKE 'yedekleme_%'")
@@ -1207,10 +1024,9 @@ def yedekleme_ayarlari(current_user):
 
 @app.route('/api/hareketleri_sifirla', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('hareketleri_sifirla')
 def hareketleri_sifirla(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -1230,10 +1046,9 @@ def hareketleri_sifirla(current_user):
 
 @app.route('/api/stok_excel_yukle', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('stok_excel_yukle')
 def stok_excel_yukle(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     if 'file' not in request.files:
         return jsonify({'hata': 'Dosya bulunamadı'}), 400
     file = request.files['file']
@@ -1315,10 +1130,9 @@ def stok_excel_yukle(current_user):
 
 @app.route('/api/rapor/dashboard', methods=['POST'])
 @token_required
-@forklift_yetkisi_gerektir('rapor_dashboard')
 def rapor_dashboard(current_user):
-    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
-        return jsonify({'hata': 'Yetkisiz erisim'}), 403
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json() or {}
     baslangic = data.get('baslangic_tarihi')
     bitis = data.get('bitis_tarihi')
@@ -1417,8 +1231,7 @@ def toplanacak_paletler(current_user):
                 else:
                     try:
                         h_tarih = datetime.strptime(str(h_tarih_raw).split('.')[0], '%Y-%m-%d %H:%M:%S')
-                    except ValueError:
-                        logger.warning("Tarih parse edilemedi: %s", h_tarih_raw)
+                    except:
                         h_tarih = bugun
                 fark_gun = (bugun - h_tarih).days
                 islem_miktari = min(kalan_stok, h_miktar)
@@ -1433,7 +1246,7 @@ def toplanacak_paletler(current_user):
                     yas_22_arti += islem_miktari
             if kalan_stok > 0:
                 yas_22_arti += kalan_stok
-            if current_user['tip'] in ('DEPOCU', 'FORKLIFT') or (current_user['tip'] == 'DAGITICI' and ilgili_dagitici_mi):
+            if current_user['tip'] == 'DEPOCU' or (current_user['tip'] == 'DAGITICI' and ilgili_dagitici_mi):
                 if (yas_8_14 + yas_15_21 + yas_22_arti) > 0:
                     sonuclar.append({
                         'musteri': f"{m_kodu} - {m_adi}",
