@@ -45,31 +45,32 @@ def hash_sifre(sifre):
     return hashlib.sha256(sifre.encode()).hexdigest()
 
 
+_DB_TYPE = 'postgres'
+
 def get_db_connection():
+    global _DB_TYPE
     database_url = os.environ.get('DATABASE_URL')
     if database_url:
         urllib.parse.uses_netloc.append('postgres')
         url = urllib.parse.urlparse(database_url)
-        conn = psycopg2.connect(
+        _DB_TYPE = 'postgres'
+        return psycopg2.connect(
             database=url.path[1:], user=url.username,
             password=url.password, host=url.hostname, port=url.port
         )
-        conn._db_type = 'postgres'
-        return conn
     else:
         import sqlite3
+        _DB_TYPE = 'sqlite'
         conn = sqlite3.connect('palet_takip.db')
         conn.row_factory = sqlite3.Row
-        conn._db_type = 'sqlite'
         return conn
 
 
 def db_execute(cursor, conn, sql, params=()):
     """PostgreSQL %s ve SQLite ? uyumlu execute"""
-    if getattr(conn, '_db_type', 'postgres') == 'sqlite':
-        sql = sql.replace('%s', '?').replace('SERIAL PRIMARY KEY', 'INTEGER PRIMARY KEY AUTOINCREMENT').replace('RETURNING id', '')
+    if _DB_TYPE == 'sqlite':
+        sql = sql.replace('%s', '?')
     cursor.execute(sql, params)
-    # SQLite RETURNING id desteği yok, lastrowid kullan
     return cursor
 
 
@@ -356,8 +357,7 @@ def kullanici_sil(current_user):
     cursor = conn.cursor()
     try:
         # Gerçekten silmek yerine pasife al - geçmiş hareketler korunur
-        conn2 = conn  # tip kontrolü için
-        if getattr(conn2, '_db_type', 'postgres') == 'sqlite':
+        if _DB_TYPE == 'sqlite':
             cursor.execute("UPDATE kullanicilar SET aktif=0, kullanici_adi=kullanici_adi||'_silindi_'||CAST(id AS TEXT) WHERE id=? AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
         else:
             cursor.execute("UPDATE kullanicilar SET aktif=0, kullanici_adi=kullanici_adi||'_silindi_'||id::text WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
