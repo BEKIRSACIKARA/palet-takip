@@ -610,7 +610,213 @@
         function showExcelExport(div) { div.innerHTML = `<div class="card"><div class="card-title">📤 Verileri Dışarı Aktar</div><div class="form-group"><label>Rapor Tipi</label><select id="export_tipi"><option value="hareketler">📋 Hareketler</option><option value="stoklar">📦 Stoklar</option><option value="musteriler">🏪 Müşteri Listesi</option></select></div><div id="tarihSecim" style="display:none;"><div class="form-group"><label>Başlangıç</label><input type="date" id="export_baslangic"></div><div class="form-group"><label>Bitiş</label><input type="date" id="export_bitis"></div></div><button class="btn" onclick="excelExportYap()">İndir</button></div>`; document.getElementById('export_tipi').addEventListener('change', () => { document.getElementById('tarihSecim').style.display = document.getElementById('export_tipi').value === 'hareketler' ? 'block' : 'none'; }); }
         async function excelExportYap() { let tip = document.getElementById('export_tipi').value, body = { rapor_tipi: tip }; if (tip === 'hareketler') { let b = document.getElementById('export_baslangic').value, e = document.getElementById('export_bitis').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } body.baslangic_tarihi = b; body.bitis_tarihi = e; } let r = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${tip}_raporu.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('Excel dosyası indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
         
-        async function showRaporlar(div) { let s = await apiCall('/api/rapor/istatistikler'); div.innerHTML = `<div class="card"><div class="card-title">📊 İstatistikler</div><div id="istatistikler"></div><button class="btn" onclick="pdfRaporIndir('istatistik')" style="margin-top:10px;background:#f44336;">📄 PDF Rapor</button></div><div class="card"><div class="card-title">📅 Tarih Aralığı Raporu</div><div class="form-group"><label>Başlangıç</label><input type="date" id="baslangic_tarihi"></div><div class="form-group"><label>Bitiş</label><input type="date" id="bitis_tarihi"></div><div class="form-group"><label>Rapor Tipi</label><select id="pdf_rapor_tipi"><option value="hareketler">Hareketler</option><option value="stoklar">Stoklar</option><option value="istatistik">İstatistikler</option></select></div><button class="btn" onclick="tarihRaporuGoster()">Raporu Göster</button><button class="btn" onclick="pdfRaporIndir()" style="margin-top:10px;background:#f44336;">📄 PDF İndir</button><button class="btn" onclick="tarihRaporuExport()" style="margin-top:10px;">📤 Excel</button><div id="tarihRaporuSonuc"></div></div>`; if (s && s.data) { let d = s.data, html = '<h3>🏆 En Çok Transfer Yapan Dağıtıcılar</h3>'; if (d.en_cok_transfer_yapan && d.en_cok_transfer_yapan.length) { html += '<table class="stok-table"><thead><th>Dağıtıcı</th><th>Sayı</th></thead><tbody>' + d.en_cok_transfer_yapan.map(x => `<tr><td>${x.ad_soyad}</td><td>${x.transfer_sayisi}</td></tr>`).join('') + '</tbody></table>'; } else html += '<p>Henüz transfer yok</p>'; html += '<h3>📦 En Çok Kullanılan Palet Tipleri</h3>'; if (d.en_cok_kullanilan_palet && d.en_cok_kullanilan_palet.length) { html += '<table class="stok-table"><thead><th>Palet Tipi</th><th>Kullanım</th><th>Toplam</th></thead><tbody>' + d.en_cok_kullanilan_palet.map(x => `<tr><td>${x.palet_adi}</td><td>${x.kullanim_sayisi}</td><td>${x.toplam_miktar}</td></tr>`).join('') + '</tbody></table>'; } else html += '<p>Henüz hareket yok</p>'; document.getElementById('istatistikler').innerHTML = html; } }
+        async function showRaporlar(div) {
+            div.innerHTML = `<div class="loading">Rapor verileri yükleniyor...</div>`;
+            const s = await apiCall('/api/rapor/istatistikler');
+            if (!s?.data) { div.innerHTML = '<div class="card" style="color:red;">❌ Veriler alınamadı</div>'; return; }
+            const d = s.data;
+            const toplam = d.stok_ozet.toplam || 1;
+
+            // Renk yardımcıları
+            const oranRenk = o => o >= 85 ? '#4caf50' : o >= 60 ? '#ff9800' : '#f44336';
+            const oranEmoji = o => o >= 85 ? '🟢' : o >= 60 ? '🟡' : '🔴';
+
+            // Bar chart helper (yatay)
+            const bar = (val, max, renk) => {
+                const pct = max > 0 ? Math.min(100, Math.round(val / max * 100)) : 0;
+                return `<div style="display:flex;align-items:center;gap:8px;">
+                    <div style="flex:1;background:#f0f0f0;border-radius:4px;height:12px;overflow:hidden;">
+                        <div style="width:${pct}%;background:${renk};height:100%;border-radius:4px;transition:width 0.6s;"></div>
+                    </div>
+                    <span style="font-size:0.75rem;font-weight:600;min-width:28px;text-align:right;">${val}</span>
+                </div>`;
+            };
+
+            // Trend mini-chart (SVG)
+            const trendSvg = () => {
+                if (!d.trend || d.trend.length < 2) return '<div style="color:#999;font-size:0.8rem;padding:20px;text-align:center;">Son 30 günde hareket yok</div>';
+                const vals = d.trend.map(x => x.miktar);
+                const maxV = Math.max(...vals) || 1;
+                const W = 300, H = 60, pad = 4;
+                const pts = vals.map((v, i) => {
+                    const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
+                    const y = H - pad - (v / maxV) * (H - pad * 2);
+                    return `${x},${y}`;
+                }).join(' ');
+                const area = `${pad},${H} ` + pts + ` ${W - pad},${H}`;
+                return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:60px;">
+                    <polygon points="${area}" fill="#2196F320"/>
+                    <polyline points="${pts}" fill="none" stroke="#2196F3" stroke-width="2" stroke-linejoin="round"/>
+                    ${vals.map((v, i) => {
+                        const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
+                        const y = H - pad - (v / maxV) * (H - pad * 2);
+                        return `<circle cx="${x}" cy="${y}" r="3" fill="#2196F3"/>`;
+                    }).join('')}
+                </svg>
+                <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:#999;">
+                    <span>${d.trend[0]?.gun?.slice(5) || ''}</span>
+                    <span>${d.trend[d.trend.length-1]?.gun?.slice(5) || ''}</span>
+                </div>`;
+            };
+
+            // Pasta chart helper (SVG donut)
+            const donut = (segments) => {
+                const total = segments.reduce((a, s) => a + s.v, 0) || 1;
+                let offset = 25; // başlangıç (12 o'clock = -25% strokeDashoffset)
+                const R = 15.9155, C = 100;
+                const arcs = segments.map(seg => {
+                    const pct = seg.v / total * 100;
+                    const arc = `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${seg.c}" stroke-width="8"
+                        stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="${-offset + 25}" style="transform-origin:50% 50%;"/>`;
+                    offset += pct;
+                    return arc;
+                }).join('');
+                return `<svg viewBox="0 0 100 100" style="width:110px;height:110px;">
+                    <circle cx="50" cy="50" r="${R}" fill="none" stroke="#eee" stroke-width="8"/>
+                    ${arcs}
+                    <text x="50" y="54" text-anchor="middle" font-size="12" font-weight="600" fill="#333">${total}</text>
+                </svg>`;
+            };
+
+            const maxVerilen = Math.max(...(d.dagitici_perf.map(x => x.verilen)), 1);
+            const maxMusteriStok = Math.max(...(d.musteri_stok.map(x => x.miktar)), 1);
+
+            div.innerHTML = `
+            <!-- ÖZET KARTLARI -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
+                <div class="card" style="text-align:center;padding:14px 8px;">
+                    <div style="font-size:1.6rem;font-weight:700;color:#2196F3;">${d.stok_ozet.depo}</div>
+                    <div style="font-size:0.72rem;color:#888;margin-top:4px;">📦 Depoda</div>
+                </div>
+                <div class="card" style="text-align:center;padding:14px 8px;">
+                    <div style="font-size:1.6rem;font-weight:700;color:#ff9800;">${d.stok_ozet.dagitici}</div>
+                    <div style="font-size:0.72rem;color:#888;margin-top:4px;">🚚 Dağıtıcıda</div>
+                </div>
+                <div class="card" style="text-align:center;padding:14px 8px;">
+                    <div style="font-size:1.6rem;font-weight:700;color:#f44336;">${d.stok_ozet.musteri}</div>
+                    <div style="font-size:0.72rem;color:#888;margin-top:4px;">🏪 Müşteride</div>
+                </div>
+                <div class="card" style="text-align:center;padding:14px 8px;">
+                    <div style="font-size:1.6rem;font-weight:700;color:#4caf50;">${d.stok_ozet.toplam}</div>
+                    <div style="font-size:0.72rem;color:#888;margin-top:4px;">🔢 Toplam</div>
+                </div>
+            </div>
+
+            <!-- PALET DAĞILIMI + TREND -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="card">
+                    <div class="card-title">🍩 Stok Dağılımı</div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        ${donut([
+                            {v: d.stok_ozet.depo, c: '#2196F3'},
+                            {v: d.stok_ozet.dagitici, c: '#ff9800'},
+                            {v: d.stok_ozet.musteri, c: '#f44336'}
+                        ])}
+                        <div style="font-size:0.75rem;line-height:2;">
+                            <div><span style="color:#2196F3">●</span> Depo: <b>${d.stok_ozet.depo}</b></div>
+                            <div><span style="color:#ff9800">●</span> Dağıtıcı: <b>${d.stok_ozet.dagitici}</b></div>
+                            <div><span style="color:#f44336">●</span> Müşteri: <b>${d.stok_ozet.musteri}</b></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">📈 Son 30 Gün Teslimat</div>
+                    ${trendSvg()}
+                </div>
+            </div>
+
+            <!-- PALET TİPİ DAĞILIMI -->
+            ${d.palet_dagilim.length ? `
+            <div class="card" style="margin-bottom:12px;">
+                <div class="card-title">🏷️ Palet Tipi Bazında Dağılım</div>
+                <table class="stok-table">
+                    <thead><tr><th>Palet Tipi</th><th style="text-align:center">📦 Depo</th><th style="text-align:center">🚚 Dağıtıcı</th><th style="text-align:center">🏪 Müşteri</th><th style="text-align:right">Toplam</th></tr></thead>
+                    <tbody>
+                    ${d.palet_dagilim.map(p => `<tr>
+                        <td style="font-weight:500;">${p.ad}</td>
+                        <td style="text-align:center;color:#2196F3;">${p.depo}</td>
+                        <td style="text-align:center;color:#ff9800;">${p.dagitici}</td>
+                        <td style="text-align:center;color:#f44336;">${p.musteri}</td>
+                        <td style="text-align:right;font-weight:600;">${p.toplam}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>` : ''}
+
+            <!-- DAĞITıcı PERFORMANSI -->
+            <div class="card" style="margin-bottom:12px;">
+                <div class="card-title">🚚 Dağıtıcı Performansı</div>
+                ${d.dagitici_perf.length === 0 ? '<p style="color:#999;">Henüz hareket yok</p>' : `
+                <table class="stok-table">
+                    <thead><tr><th>Dağıtıcı</th><th>Verilen</th><th>Toplanan</th><th>Bekleyen</th><th>Verimlilik</th></tr></thead>
+                    <tbody>
+                    ${d.dagitici_perf.map(p => `<tr>
+                        <td style="font-weight:500;">${p.ad}</td>
+                        <td>
+                            ${bar(p.verilen, maxVerilen, '#f44336')}
+                        </td>
+                        <td>
+                            ${bar(p.toplanan, maxVerilen, '#4caf50')}
+                        </td>
+                        <td style="text-align:center;font-weight:600;color:${p.bekleyen > 0 ? '#f44336' : '#4caf50'};">${p.bekleyen}</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <span>${oranEmoji(p.oran)}</span>
+                                <div style="flex:1;background:#f0f0f0;border-radius:4px;height:12px;overflow:hidden;">
+                                    <div style="width:${Math.min(100,p.oran)}%;background:${oranRenk(p.oran)};height:100%;border-radius:4px;"></div>
+                                </div>
+                                <span style="font-size:0.72rem;font-weight:600;min-width:36px;">%${p.oran}</span>
+                            </div>
+                        </td>
+                    </tr>`).join('')}
+                    </tbody>
+                </table>`}
+            </div>
+
+            <!-- EN ÇOK PALET BEKLEYEN MÜŞTERİLER -->
+            <div class="card" style="margin-bottom:12px;">
+                <div class="card-title">⚠️ En Çok Palet Bekleyen Müşteriler (Top 15)</div>
+                ${d.musteri_stok.length === 0 ? '<p style="color:#4caf50;">✅ Müşteride bekleyen palet yok</p>' : `
+                <table class="stok-table">
+                    <thead><tr><th>#</th><th>Müşteri</th><th>Bekleyen Palet</th></tr></thead>
+                    <tbody>
+                    ${d.musteri_stok.map((m, i) => `<tr>
+                        <td style="color:#999;font-size:0.8rem;">${i + 1}</td>
+                        <td><strong>${m.kod}</strong> – ${m.ad}</td>
+                        <td>${bar(m.miktar, maxMusteriStok, i < 3 ? '#f44336' : i < 7 ? '#ff9800' : '#2196F3')}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                </table>`}
+            </div>
+
+            <!-- EXPORT -->
+            <div class="card">
+                <div class="card-title">📥 Rapor İndir</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                    <div class="form-group" style="margin:0;"><label style="font-size:0.75rem;">Başlangıç</label><input type="date" id="baslangic_tarihi" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;"></div>
+                    <div class="form-group" style="margin:0;"><label style="font-size:0.75rem;">Bitiş</label><input type="date" id="bitis_tarihi" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;"></div>
+                </div>
+                <div class="form-group"><label style="font-size:0.75rem;">Rapor Tipi</label>
+                    <select id="pdf_rapor_tipi" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;">
+                        <option value="hareketler">📋 Hareketler</option>
+                        <option value="stoklar">📦 Stoklar</option>
+                        <option value="istatistik">📊 İstatistikler</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <button class="btn" onclick="tarihRaporuGoster()" style="background:#2196F3;">Ekranda Göster</button>
+                    <button class="btn" onclick="pdfRaporIndir()" style="background:#f44336;">📄 PDF</button>
+                    <button class="btn" onclick="tarihRaporuExport()" style="background:#4caf50;">📤 Excel</button>
+                </div>
+                <div id="tarihRaporuSonuc" style="margin-top:12px;"></div>
+            </div>`;
+
+            // Tarihleri bugün/bu ay olarak varsayılan ayarla
+            const bugun = new Date();
+            const ayBasi = new Date(bugun.getFullYear(), bugun.getMonth(), 1);
+            document.getElementById('baslangic_tarihi').value = ayBasi.toISOString().split('T')[0];
+            document.getElementById('bitis_tarihi').value = bugun.toISOString().split('T')[0];
+        }
         async function tarihRaporuGoster() { let b = document.getElementById('baslangic_tarihi').value, e = document.getElementById('bitis_tarihi').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } let d = document.getElementById('tarihRaporuSonuc'); d.innerHTML = '<div class="loading">Yükleniyor...</div>'; let r = await apiCall('/api/hareketler_filtreli', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) }); if (r && r.data) { if (!r.data.length) { d.innerHTML = '<div class="card">📭 Hareket yok</div>'; return; } let html = `<div class="card"><div class="card-title">📋 ${b} - ${e}</div>`; for (let h of r.data) html += `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}${h.makbuz_no ? `<div class="detay">🧾 Makbuz: <span class="makbuz-link" onclick="showMakbuz('${h.makbuz_no}')">${h.makbuz_no}</span></div>` : ''}</div>`; html += '</div>'; d.innerHTML = html; } }
         async function tarihRaporuExport() { let b = document.getElementById('baslangic_tarihi').value, e = document.getElementById('bitis_tarihi').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } let r = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ rapor_tipi: 'hareketler', baslangic_tarihi: b, bitis_tarihi: e }) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `hareket_raporu_${b}_${e}.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('Excel raporu indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
         async function pdfRaporIndir(tip = null) { let rapor_tipi = tip, b = null, e = null; if (!tip) { rapor_tipi = document.getElementById('pdf_rapor_tipi').value; b = document.getElementById('baslangic_tarihi').value; e = document.getElementById('bitis_tarihi').value; } let body = { rapor_tipi: rapor_tipi }; if (b && e) { body.baslangic_tarihi = b; body.bitis_tarihi = e; } let r = await fetch(`${API_URL}/api/rapor/pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${rapor_tipi}_raporu.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('PDF rapor indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
