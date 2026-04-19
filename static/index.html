@@ -412,11 +412,66 @@
         function showMusteriEkle(div) { div.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button></div>`; }
         async function yeniMusteriEkle() { let k = document.getElementById('musteri_kodu').value, a = document.getElementById('musteri_adi').value, t = document.getElementById('tabela_adi').value; if (!k || !a || !t) { showToast('Tüm alanları doldurun', 'error'); return; } let r = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu: k, musteri_adi: a, tabela_adi: t }) }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Ekleme başarısız', 'error'); }
         
-        async function showKullaniciYonetim(div) { let k = await apiCall('/api/kullanici_listesi'); if (!k?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></thead><tbody>${k.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id},'${k.kullanici_adi}','${k.ad_soyad}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`; }
+       // 1. Bu fonksiyonu dosyanın içinde bul (satır 238 civarı)
+async function showKullaniciYonetim(div) {
+    let k = await apiCall('/api/kullanici_listesi');
+    if (!k?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
+    
+    // Aşağıdaki satırların içinde 'Ad Soyad' girişinin hemen altına yapıştırıyoruz
+    div.innerHTML = `<div class="card">
+        <div class="card-title">👥 Dağıtıcılar</div>
+        <button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button>
+        <table class="stok-table">
+            <thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></thead>
+            <tbody>${k.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id},'${k.kullanici_adi}','${k.ad_soyad}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody>
+        </table>
+    </div>
+    <div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;">
+        <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;">
+            <h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3>
+            <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div>
+            <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
+            
+            <div class="form-group">
+                <label>Kullanıcı Tipi</label>
+                <select id="kullanici_tipi_duzenle">
+                    <option value="DAGITICI">Dağıtıcı</option>
+                    <option value="FORKLIFT_OPERATORU">Forklift Operatörü</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div>
+            <input type="hidden" id="kullanici_id_duzenle">
+            <div style="display:flex;gap:10px;">
+                <button class="btn" onclick="kaydetKullanici()">Kaydet</button>
+                <button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button>
+            </div>
+        </div>
+    </div>`;
+}
         function showYeniKullaniciModal() { document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle'; document.getElementById('kullanici_adi_duzenle').value = ''; document.getElementById('ad_soyad_duzenle').value = ''; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = ''; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function duzenleKullanici(id, ad, soyad) { document.getElementById('kullaniciModalTitle').innerText = 'Dağıtıcı Düzenle'; document.getElementById('kullanici_adi_duzenle').value = ad; document.getElementById('ad_soyad_duzenle').value = soyad; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = id; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
-        async function kaydetKullanici() { let id = document.getElementById('kullanici_id_duzenle').value, ad = document.getElementById('kullanici_adi_duzenle').value, soyad = document.getElementById('ad_soyad_duzenle').value, s = document.getElementById('kullanici_sifre').value; if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; } if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; } let r; if (id) { let body = { id: parseInt(id), kullanici_adi: ad, ad_soyad: soyad }; if (s) body.sifre = s; r = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) }); } else { r = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) }); } if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); kapatKullaniciModal(); goBack(); } else showToast(r?.data?.hata || 'İşlem başarısız', 'error'); }
+        async function kaydetKullanici() {
+    let tip = document.getElementById('kullanici_tipi_duzenle').value;
+    let id = document.getElementById('kullanici_id_duzenle').value;
+    let ad = document.getElementById('kullanici_adi_duzenle').value;
+    let soyad = document.getElementById('ad_soyad_duzenle').value;
+    let s = document.getElementById('kullanici_sifre').value;
+    let tip = document.getElementById('kullanici_tipi_duzenle').value; // Tip bilgisini al
+
+    // API Adresini tipe göre belirle
+    let apiAdresi = (tip === 'FORKLIFT_OPERATORU') ? '/api/forklift_operatoru_ekle' : '/api/dagitici_ekle';
+
+    let r = await apiCall(apiAdresi, { 
+        method: 'POST', 
+        body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) 
+    });
+    
+    if (r && r.data.success) {
+        showToast("İşlem Başarılı");
+        location.reload();
+    }
+}
         async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz?')) return; let r = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Silme başarısız', 'error'); }
         
         async function showPaletTipleri(div) { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></thead><tbody>${p.data.map(p => `<tr><td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id},'${p.stok_kodu}','${p.palet_adi}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody> </table></div><div id="paletModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi"></div><input type="hidden" id="palet_id"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`; }
