@@ -102,6 +102,7 @@
                 ]},
                 { id: "kullanici_islemleri", title: "👥 KULLANICI İŞLEMLERİ", icon: "👥", desc: "Kullanıcı ve müşteri yönetimi", actions: [
                     { id: "kullaniciYonetim", icon: "👥", text: "Kullanıcılar", desc: "Dağıtıcıları yönet" },
+                    { id: "forkliftYonetim", icon: "🚜", text: "Forklift Yönetimi", desc: "Forklift kullanıcısı ekle ve yetkilendir" },
                     { id: "musteriEkle", icon: "👤", text: "Müşteri Ekle", desc: "Yeni müşteri ekle" }
                 ]},
                 { id: "veri_guncelleme", title: "📂 VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
@@ -137,7 +138,8 @@
                 { id: "hareketler", title: "📋 HAREKETLER", icon: "📋", desc: "Hareket geçmişi", actions: [
                     { id: "hareketler", icon: "📋", text: "Hareketlerim", desc: "Kendi hareketlerinizi gör" }
                 ]}
-            ]
+            ],
+            forklift: []  // Forklift grubu dinamik olarak render'da belirlenir
         };
 
         function showToast(m, t = 'success') {
@@ -174,7 +176,7 @@
 
         function logout() { token = null; currentUser = null; localStorage.removeItem('token'); localStorage.removeItem('user'); renderLogin(); }
         function goToMainMenu() { currentLevel = 0; currentGroup = null; currentAction = null; render(); }
-        function goToGroup(id) { let list = currentUser.tip === 'DEPOCU' ? groups.depocu : groups.dagitici; let g = list.find(x => x.id === id); if (g) { currentLevel = 1; currentGroup = g; currentAction = null; render(); } }
+        function goToGroup(id) { let list = currentUser.tip === 'DEPOCU' || currentUser.tip === 'FORKLIFT' ? groups.depocu : groups.dagitici; let g = list.find(x => x.id === id); if (g) { currentLevel = 1; currentGroup = g; currentAction = null; render(); } }
         function goToAction(id) { if (currentGroup) { let a = currentGroup.actions.find(x => x.id === id); if (a) { currentLevel = 2; currentAction = a; render(); } } }
         function goBack() { if (currentLevel === 2) { currentLevel = 1; currentAction = null; render(); } else if (currentLevel === 1) { currentLevel = 0; currentGroup = null; render(); } }
         
@@ -187,13 +189,13 @@
 
         async function render() {
             if (!currentUser) return;
-            let isDepocu = currentUser.tip === 'DEPOCU', list = isDepocu ? groups.depocu : groups.dagitici;
+            let isDepocu = currentUser.tip === 'DEPOCU', isForklift = currentUser.tip === 'FORKLIFT', list = (isDepocu || isForklift) ? groups.depocu : groups.dagitici;
             if (currentLevel === 0) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="container">${list.map(g => `<div class="menu-group-card" onclick="goToGroup('${g.id}')"><div><span class="icon">${g.icon}</span><span class="title">${g.title}</span></div><div class="desc">${g.desc}</div></div>`).join('')}</div>`;
+                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : isForklift ? 'Forklift' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="container">${list.map(g => `<div class="menu-group-card" onclick="goToGroup('${g.id}')"><div><span class="icon">${g.icon}</span><span class="title">${g.title}</span></div><div class="desc">${g.desc}</div></div>`).join('')}</div>`;
             } else if (currentLevel === 1 && currentGroup) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container"><div class="action-buttons">${currentGroup.actions.map(a => `<button class="action-btn" onclick="goToAction('${a.id}')"><span class="icon">${a.icon}</span><span>${a.text}</span><span style="font-size:0.65rem;color:#999;">${a.desc}</span></button>`).join('')}</div><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div>`;
+                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : isForklift ? 'Forklift' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container"><div class="action-buttons">${currentGroup.actions.map(a => `<button class="action-btn" onclick="goToAction('${a.id}')"><span class="icon">${a.icon}</span><span>${a.text}</span><span style="font-size:0.65rem;color:#999;">${a.desc}</span></button>`).join('')}</div><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div>`;
             } else if (currentLevel === 2 && currentAction) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container" id="content"></div>`;
+                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${isDepocu ? 'Depocu' : isForklift ? 'Forklift' : 'Dağıtıcı'})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container" id="content"></div>`;
                 await loadActionContent(document.getElementById('content'), currentAction.id);
                 document.getElementById('content').innerHTML += `<button class="btn btn-secondary" onclick="goBack()" style="margin-top:16px;">🔙 Geri Dön</button>`;
             }
@@ -212,6 +214,7 @@
             else if (aid === 'musteriEkle') showMusteriEkle(div);
             else if (aid === 'paletTipleri') await showPaletTipleri(div);
             else if (aid === 'kullaniciYonetim') await showKullaniciYonetim(div);
+            else if (aid === 'forkliftYonetim') await showForkliftYonetim(div);
             else if (aid === 'excelYukle') showExcelYukle(div);
             else if (aid === 'excelExport') showExcelExport(div);
             else if (aid === 'raporlar') await showRaporlar(div);
@@ -412,71 +415,11 @@
         function showMusteriEkle(div) { div.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button></div>`; }
         async function yeniMusteriEkle() { let k = document.getElementById('musteri_kodu').value, a = document.getElementById('musteri_adi').value, t = document.getElementById('tabela_adi').value; if (!k || !a || !t) { showToast('Tüm alanları doldurun', 'error'); return; } let r = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu: k, musteri_adi: a, tabela_adi: t }) }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Ekleme başarısız', 'error'); }
         
-       // 1. Bu fonksiyonu dosyanın içinde bul (satır 238 civarı)
-async function showKullaniciYonetim(div) {
-    let k = await apiCall('/api/kullanici_listesi');
-    if (!k?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
-    div.innerHTML = `<div class="card">
-        <div class="card-title">👥 Kullanıcı Yönetimi</div>
-        <button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Kullanıcı Ekle</button>
-        <table class="stok-table">
-            <thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></thead>
-            <tbody>${k.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id},'${k.kullanici_adi}','${k.ad_soyad}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody>
-        </table>
-    </div>
-    <div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;">
-        <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;">
-            <h3 id="kullaniciModalTitle">Kullanıcı Düzenle</h3>
-            <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div>
-            <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
-            
-            <div class="form-group">
-                <label>Kullanıcı Tipi</label>
-                <select id="kullanici_tipi_duzenle">
-                    <option value="DAGITICI">Dağıtıcı</option>
-                    <option value="FORKLIFT_OPERATORU">Forklift Operatörü</option>
-                </select>
-            </div>
-
-            <div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div>
-            <input type="hidden" id="kullanici_id_duzenle">
-            <div style="display:flex;gap:10px;">
-                <button class="btn" onclick="kaydetKullanici()">Kaydet</button>
-                <button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button>
-            </div>
-        </div>
-    </div>`;
-}
+        async function showKullaniciYonetim(div) { let k = await apiCall('/api/kullanici_listesi'); if (!k?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">👥 Dağıtıcılar</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniKullaniciModal()">+ Yeni Dağıtıcı Ekle</button><table class="stok-table"><thead><th>ID</th><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>İşlemler</th></thead><tbody>${k.data.map(k => `<tr><td>${k.id}</td><td>${k.kullanici_adi}</td><td>${k.ad_soyad}</td><td><button class="btn-small" onclick="duzenleKullanici(${k.id},'${k.kullanici_adi}','${k.ad_soyad}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silKullanici(${k.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody></table></div><div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="kullaniciModalTitle">Dağıtıcı Düzenle</h3><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi_duzenle"></div><div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div><div class="form-group"><label>Yeni Şifre</label><input type="password" id="kullanici_sifre"></div><input type="hidden" id="kullanici_id_duzenle"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetKullanici()">Kaydet</button><button class="btn btn-secondary" onclick="kapatKullaniciModal()">İptal</button></div></div></div>`; }
         function showYeniKullaniciModal() { document.getElementById('kullaniciModalTitle').innerText = 'Yeni Dağıtıcı Ekle'; document.getElementById('kullanici_adi_duzenle').value = ''; document.getElementById('ad_soyad_duzenle').value = ''; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = ''; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function duzenleKullanici(id, ad, soyad) { document.getElementById('kullaniciModalTitle').innerText = 'Dağıtıcı Düzenle'; document.getElementById('kullanici_adi_duzenle').value = ad; document.getElementById('ad_soyad_duzenle').value = soyad; document.getElementById('kullanici_sifre').value = ''; document.getElementById('kullanici_id_duzenle').value = id; document.getElementById('kullaniciModal').style.display = 'flex'; }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
-async function kaydetKullanici() {
-    let ad = document.getElementById('kullanici_adi_duzenle').value;
-    let soyad = document.getElementById('ad_soyad_duzenle').value;
-    let s = document.getElementById('kullanici_sifre').value;
-    let tip = document.getElementById('kullanici_tipi_duzenle').value; // Seçilen tipi al
-
-    let url;
-    // Tipe göre doğru API ucuna gönderiyoruz
-    if (tip === 'FORKLIFT_OPERATORU') {
-        url = '/api/forklift_operatoru_ekle'; 
-    } else {
-        url = '/api/dagitici_ekle';
-    }
-
-    let r = await apiCall(url, { 
-        method: 'POST', 
-        body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) 
-    });
-    
-    // ... geri kalan işlemler
-
-    if (r && r.status === 200 && r.data.success) {
-        showToast(r.data.mesaj);
-        kapatKullaniciModal();
-        goBack();
-    } else showToast(r?.data?.hata || 'İşlem başarısız', 'error');
-}
+        async function kaydetKullanici() { let id = document.getElementById('kullanici_id_duzenle').value, ad = document.getElementById('kullanici_adi_duzenle').value, soyad = document.getElementById('ad_soyad_duzenle').value, s = document.getElementById('kullanici_sifre').value; if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; } if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; } let r; if (id) { let body = { id: parseInt(id), kullanici_adi: ad, ad_soyad: soyad }; if (s) body.sifre = s; r = await apiCall('/api/kullanici_duzenle', { method: 'PUT', body: JSON.stringify(body) }); } else { r = await apiCall('/api/dagitici_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi: ad, ad_soyad: soyad, sifre: s }) }); } if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); kapatKullaniciModal(); goBack(); } else showToast(r?.data?.hata || 'İşlem başarısız', 'error'); }
         async function silKullanici(id) { if (!confirm('Bu dağıtıcıyı silmek istediğinize emin misiniz?')) return; let r = await apiCall(`/api/kullanici_sil?id=${id}`, { method: 'DELETE' }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Silme başarısız', 'error'); }
         
         async function showPaletTipleri(div) { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; } div.innerHTML = `<div class="card"><div class="card-title">🏷️ Palet Tipleri Yönetimi</div><button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showYeniPaletTipiModal()">+ Yeni Palet Tipi Ekle</button><table class="stok-table"><thead><th>ID</th><th>Stok Kodu</th><th>Palet Adı</th><th>İşlemler</th></thead><tbody>${p.data.map(p => `<tr><td>${p.id}</td><td>${p.stok_kodu}</td><td>${p.palet_adi}</td><td><button class="btn-small" onclick="duzenlePaletTipi(${p.id},'${p.stok_kodu}','${p.palet_adi}')" style="background:#ff9800;">✏️</button> <button class="btn-small" onclick="silPaletTipi(${p.id})" style="background:#f44336;">🗑️</button></td></tr>`).join('')}</tbody> </table></div><div id="paletModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;"><h3 id="modalTitle">Yeni Palet Tipi</h3><div class="form-group"><label>Stok Kodu</label><input type="text" id="stok_kodu"></div><div class="form-group"><label>Palet Adı</label><input type="text" id="palet_adi"></div><input type="hidden" id="palet_id"><div style="display:flex;gap:10px;"><button class="btn" onclick="kaydetPaletTipi()">Kaydet</button><button class="btn btn-secondary" onclick="kapatModal()">İptal</button></div></div></div>`; }
@@ -616,6 +559,125 @@ async function kaydetKullanici() {
                 let d = r.data, oRenk = d.verim.oran >= 85 ? '#4caf50' : (d.verim.oran >= 60 ? '#ff9800' : '#f44336');
                 pDiv.innerHTML = `<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:20px;"><div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DEPO</div><div style="font-size:1.5rem; font-weight:bold; color:#2196F3;">${d.stok.depo}</div></div><div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DAĞITICI</div><div style="font-size:1.5rem; font-weight:bold; color:#ff9800;">${d.stok.dagitici}</div></div><div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">MÜŞTERİ</div><div style="font-size:1.5rem; font-weight:bold; color:#f44336;">${d.stok.musteri}</div></div></div><div class="card"><div class="card-title">🚀 Toplama Verimliliği: %${d.verim.oran}</div><div style="background:#eee; height:20px; border-radius:10px; overflow:hidden;"><div style="width:${d.verim.oran > 100 ? 100 : d.verim.oran}%; background:${oRenk}; height:100%; transition:width 1s ease-in-out;"></div></div><div style="display:flex; justify-content:space-between; margin-top:10px; font-size:0.8rem;"><span>Verilen: <strong>${d.verim.v}</strong></span><span>Toplanan: <strong>${d.verim.t}</strong></span></div></div><div class="card"><div class="card-title">⚠️ Kırmızı Liste (Bekleyen Paletler)</div><table class="stok-table">${d.bekleyen.map(m => `<tr><td>${m.ad}</td><td class="miktar az">${m.miktar}</td></tr>`).join('')}</table></div><div class="card"><div class="card-title">🚚 Dağıtıcı Karnesi</div><table class="stok-table"><thead><tr><th>Ad</th><th>V</th><th>T</th></tr></thead><tbody>${d.perf.map(p => `<tr><td>${p.ad}</td><td style="color:#f44336;">${p.verilen}</td><td style="color:#4caf50; font-weight:bold;">${p.toplanan}</td></tr>`).join('')}</tbody></table></div>`;
             } catch (error) { pDiv.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Javascript Hatası: ${error.message}</div>`; }
+        }
+
+
+        // --- FORKLİFT YÖNETİMİ ---
+
+        async function showForkliftYonetim(div) {
+            div.innerHTML = '<div class="loading">Forklift kullanıcıları yükleniyor...</div>';
+            let r = await apiCall('/api/forklift_listesi');
+            let liste = r?.data || [];
+            div.innerHTML = `
+                <div class="card">
+                    <div class="card-title">🚜 Forklift Kullanıcıları</div>
+                    <button class="btn" style="margin-bottom:16px;background:#4caf50;" onclick="showForkliftEkleModal()">+ Yeni Forklift Kullanıcısı Ekle</button>
+                    ${liste.length === 0 ? '<p style="color:#999;font-size:0.9rem;">Henüz forklift kullanıcısı yok.</p>' : `
+                    <table class="stok-table">
+                        <thead><tr><th>Ad Soyad</th><th>Kullanıcı Adı</th><th>Yetkiler</th></tr></thead>
+                        <tbody>${liste.map(k => `
+                            <tr>
+                                <td>${k.ad_soyad}</td>
+                                <td>${k.kullanici_adi}</td>
+                                <td><button class="btn-small" style="background:#2196F3;" onclick="showForkliftYetkiPanel(${k.id}, '${k.ad_soyad}')">⚙️ Yetkiler</button></td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>`}
+                </div>
+                <div id="forkliftYetkiPanel"></div>
+                <div id="forkliftEkleModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;">
+                    <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;">
+                        <h3 style="margin-bottom:16px;">🚜 Yeni Forklift Kullanıcısı</h3>
+                        <div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="fk_kullanici_adi"></div>
+                        <div class="form-group"><label>Ad Soyad</label><input type="text" id="fk_ad_soyad"></div>
+                        <div class="form-group"><label>Şifre (en az 4 karakter)</label><input type="password" id="fk_sifre"></div>
+                        <div style="display:flex;gap:10px;margin-top:8px;">
+                            <button class="btn" onclick="forkliftKaydet()">Kaydet</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('forkliftEkleModal').style.display='none'">İptal</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function showForkliftEkleModal() {
+            let m = document.getElementById('forkliftEkleModal');
+            if (m) {
+                document.getElementById('fk_kullanici_adi').value = '';
+                document.getElementById('fk_ad_soyad').value = '';
+                document.getElementById('fk_sifre').value = '';
+                m.style.display = 'flex';
+            }
+        }
+
+        async function forkliftKaydet() {
+            let ka = document.getElementById('fk_kullanici_adi').value.trim();
+            let ad = document.getElementById('fk_ad_soyad').value.trim();
+            let s = document.getElementById('fk_sifre').value;
+            if (!ka || !ad || !s) { showToast('Tüm alanları doldurun', 'error'); return; }
+            if (s.length < 4) { showToast('Şifre en az 4 karakter olmalı', 'error'); return; }
+            let r = await apiCall('/api/forklift_ekle', { method: 'POST', body: JSON.stringify({ kullanici_adi: ka, ad_soyad: ad, sifre: s }) });
+            if (r && r.status === 200 && r.data.success) {
+                showToast('Forklift kullanıcısı eklendi');
+                document.getElementById('forkliftEkleModal').style.display = 'none';
+                goBack();
+            } else {
+                showToast(r?.data?.hata || 'Ekleme başarısız', 'error');
+            }
+        }
+
+        async function showForkliftYetkiPanel(kullaniciId, adSoyad) {
+            let panel = document.getElementById('forkliftYetkiPanel');
+            panel.innerHTML = '<div class="loading">Yetkiler yükleniyor...</div>';
+            let r = await apiCall(`/api/forklift_yetkileri/${kullaniciId}`);
+            if (!r || !r.data) { panel.innerHTML = '<div class="card">Yetkiler alınamadı</div>'; return; }
+            let yetkiler = r.data;
+            panel.innerHTML = `
+                <div class="card" style="border-left:4px solid #ff9800;">
+                    <div class="card-title" style="color:#e65100;">⚙️ ${adSoyad} — Yetki Ayarları</div>
+                    <p style="font-size:0.8rem;color:#666;margin-bottom:16px;">Kapalı yetkiler o kullanıcı için devre dışı kalır. Açık yetkiler serbestçe kullanılabilir.</p>
+                    <div id="yetkiListesi">
+                        ${yetkiler.map(y => `
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee;">
+                                <span style="font-size:0.9rem;">${y.aciklama}</span>
+                                <label style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;margin-left:12px;">
+                                    <input type="checkbox" data-kod="${y.kod}" ${y.aktif ? 'checked' : ''} style="opacity:0;width:0;height:0;" onchange="toggleYetki(this)">
+                                    <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:${y.aktif ? '#4caf50' : '#ccc'};border-radius:26px;transition:.3s;" id="toggle_${y.kod}">
+                                        <span style="position:absolute;content:'';height:20px;width:20px;left:${y.aktif ? '24px' : '3px'};bottom:3px;background:white;border-radius:50%;transition:.3s;" id="thumb_${y.kod}"></span>
+                                    </span>
+                                </label>
+                            </div>`).join('')}
+                    </div>
+                    <div style="margin-top:16px;display:flex;gap:10px;">
+                        <button class="btn" onclick="yetkiKaydet(${kullaniciId})">💾 Kaydet</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('forkliftYetkiPanel').innerHTML=''">İptal</button>
+                    </div>
+                </div>`;
+        }
+
+        function toggleYetki(checkbox) {
+            let kod = checkbox.getAttribute('data-kod');
+            let togBg = document.getElementById('toggle_' + kod);
+            let togThumb = document.getElementById('thumb_' + kod);
+            if (checkbox.checked) {
+                togBg.style.background = '#4caf50';
+                togThumb.style.left = '24px';
+            } else {
+                togBg.style.background = '#ccc';
+                togThumb.style.left = '3px';
+            }
+        }
+
+        async function yetkiKaydet(kullaniciId) {
+            let checkboxlar = document.querySelectorAll('#yetkiListesi input[type=checkbox]');
+            let yetkiler = {};
+            checkboxlar.forEach(cb => { yetkiler[cb.getAttribute('data-kod')] = cb.checked; });
+            let r = await apiCall(`/api/forklift_yetkileri/${kullaniciId}`, { method: 'POST', body: JSON.stringify({ yetkiler }) });
+            if (r && r.status === 200 && r.data.success) {
+                showToast('Yetkiler kaydedildi', 'success');
+                document.getElementById('forkliftYetkiPanel').innerHTML = '';
+            } else {
+                showToast(r?.data?.hata || 'Kayıt başarısız', 'error');
+            }
         }
 
         window.onload = () => {
