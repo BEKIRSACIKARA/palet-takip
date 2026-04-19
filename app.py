@@ -51,12 +51,21 @@ def get_now():
     return datetime.now(tz=ISTANBUL_TZ).replace(tzinfo=None)
 
 
+import hashlib
+
 def hash_sifre(sifre):
     return bcrypt.hashpw(sifre.encode(), bcrypt.gensalt()).decode()
 
+def _sha256_hash(sifre):
+    return hashlib.sha256(sifre.encode()).hexdigest()
+
 def sifre_dogrula(sifre, hashed):
+    """bcrypt veya eski SHA-256 hash'i doğrular."""
     try:
-        return bcrypt.checkpw(sifre.encode(), hashed.encode())
+        if hashed.startswith('$2b$') or hashed.startswith('$2a$'):
+            return bcrypt.checkpw(sifre.encode(), hashed.encode())
+        else:
+            return hashed == _sha256_hash(sifre)
     except Exception:
         return False
 
@@ -217,11 +226,22 @@ def login():
     cursor = conn.cursor()
     cursor.execute("SELECT id, kullanici_adi, tip, ad_soyad, sifre FROM kullanicilar WHERE kullanici_adi = %s", (data.get('kullanici_adi'),))
     kullanici = cursor.fetchone()
-    cursor.close()
-    conn.close()
     if kullanici and sifre_dogrula(data.get('sifre', ''), kullanici[4]):
+        # Eski SHA-256 hash'i otomatik olarak bcrypt'e geçir
+        if not (kullanici[4].startswith('$2b$') or kullanici[4].startswith('$2a$')):
+            try:
+                yeni_hash = hash_sifre(data.get('sifre', ''))
+                cursor.execute("UPDATE kullanicilar SET sifre = %s WHERE id = %s", (yeni_hash, kullanici[0]))
+                conn.commit()
+                logger.info("Kullanıcı %s bcrypt'e geçirildi.", kullanici[1])
+            except Exception as e:
+                logger.warning("Hash geçişi başarısız: %s", e)
+        cursor.close()
+        conn.close()
         token = jwt.encode({'id': kullanici[0], 'kullanici_adi': kullanici[1], 'tip': kullanici[2], 'ad_soyad': kullanici[3], 'exp': datetime.utcnow() + timedelta(hours=24)}, app.config['SECRET_KEY'], algorithm='HS256')
         return jsonify({'success': True, 'token': token, 'kullanici': {'id': kullanici[0], 'kullanici_adi': kullanici[1], 'tip': kullanici[2], 'ad_soyad': kullanici[3]}})
+    cursor.close()
+    conn.close()
     return jsonify({'success': False, 'hata': 'Hatalı kullanıcı adı veya şifre'}), 401
 
 
