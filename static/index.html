@@ -6,33 +6,53 @@
     <meta name="theme-color" content="#2196F3">
     <title>Palet Takip Sistemi</title>
     <style>
+        :root {
+            --theme-main: #2196F3;
+            --theme-dark: #1976D2;
+            --theme-light: #e3f2fd;
+            --theme-text: white;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f5f5f5; color: #333; padding-bottom: 20px; }
-        .header { background: linear-gradient(135deg, #2196F3, #1976D2); color: white; padding: 20px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, var(--theme-main), var(--theme-dark)); color: white; padding: 20px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        /* Renk Seçici */
+        .color-picker-btn { background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5); color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .color-picker-panel { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; display: flex; align-items: center; justify-content: center; }
+        .color-picker-box { background: white; border-radius: 16px; padding: 24px; width: 90%; max-width: 360px; }
+        .color-picker-box h3 { margin-bottom: 16px; color: #333; font-size: 1rem; }
+        .color-swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+        .color-swatch { width: 100%; aspect-ratio: 1; border-radius: 10px; border: 3px solid transparent; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.active { border-color: #333; transform: scale(1.1); }
+        .custom-color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+        .custom-color-row label { font-size: 0.85rem; color: #666; white-space: nowrap; }
+        .custom-color-row input[type=color] { width: 48px; height: 36px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 2px; }
         .header h1 { font-size: 1.5rem; margin-bottom: 5px; }
         .header .user-info { font-size: 0.85rem; opacity: 0.9; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
         .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
         .container { padding: 16px; }
         
-        .menu-group-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s; border-left: 4px solid #2196F3; }
+        .menu-group-card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s; border-left: 4px solid var(--theme-main); }
         .menu-group-card:hover { background: #f5f5f5; transform: translateX(4px); }
         .menu-group-card .icon { font-size: 1.8rem; display: inline-block; margin-right: 12px; vertical-align: middle; }
-        .menu-group-card .title { font-size: 1.1rem; font-weight: 600; color: #1976D2; }
+        .menu-group-card .title { font-size: 1.1rem; font-weight: 600; color: var(--theme-dark); }
         .menu-group-card .desc { font-size: 0.75rem; color: #999; margin-top: 4px; }
         
         .action-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
-        .action-btn { background: white; border: none; padding: 16px 12px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 500; color: #2196F3; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
-        .action-btn:active { transform: scale(0.96); background: #e3f2fd; }
+        .action-btn { background: white; border: none; padding: 16px 12px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.85rem; font-weight: 500; color: var(--theme-main); cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+        .action-btn:active { transform: scale(0.96); background: var(--theme-light); }
         .action-btn .icon { font-size: 1.6rem; }
         
         .breadcrumb { background: #fff; padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 0.8rem; overflow-x: auto; white-space: nowrap; }
-        .breadcrumb a { color: #2196F3; text-decoration: none; cursor: pointer; }
+        .breadcrumb a { color: var(--theme-main); text-decoration: none; cursor: pointer; }
         .breadcrumb a:hover { text-decoration: underline; }
         .breadcrumb .separator { color: #999; margin: 0 4px; }
         .breadcrumb .current { color: #666; font-weight: 500; }
         
         .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card-title { font-weight: 600; font-size: 1rem; margin-bottom: 12px; color: #1976D2; border-left: 3px solid #2196F3; padding-left: 10px; }
+        .card-title { font-weight: 600; font-size: 1rem; margin-bottom: 12px; color: var(--theme-dark); border-left: 3px solid var(--theme-main); padding-left: 10px; }
         .stok-table { width: 100%; border-collapse: collapse; }
         .stok-table th, .stok-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #eee; }
         .stok-table th { font-weight: 600; color: #666; font-size: 0.75rem; }
@@ -46,8 +66,8 @@
         .form-group label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; }
         .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; }
         
-        .btn { background: #2196F3; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 500; cursor: pointer; width: 100%; }
-        .btn:active { background: #1976D2; }
+        .btn { background: var(--theme-main); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 500; cursor: pointer; width: 100%; }
+        .btn:active { background: var(--theme-dark); }
         .btn-secondary { background: #9e9e9e; }
         .btn-warning { background: #ff9800; }
         .btn-small { border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.7rem; padding: 6px 10px; }
@@ -56,22 +76,22 @@
         .hareket-item .tarih { font-size: 0.65rem; color: #999; }
         .hareket-item .islem { font-weight: 500; margin: 5px 0; font-size: 0.85rem; }
         .hareket-item .detay { font-size: 0.75rem; color: #666; }
-        .makbuz-link { color: #2196F3; cursor: pointer; text-decoration: underline; }
+        .makbuz-link { color: var(--theme-main); cursor: pointer; text-decoration: underline; }
         
         .musteri-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
         .musteri-item:hover { background: #f5f5f5; }
-        .musteri-item.selected { background: #e3f2fd; border-left: 4px solid #2196F3; }
+        .musteri-item.selected { background: var(--theme-light); border-left: 4px solid var(--theme-main); }
         
         .toast { position: fixed; bottom: 20px; left: 20px; right: 20px; background: #333; color: white; padding: 12px; border-radius: 8px; text-align: center; z-index: 1000; animation: fadeInUp 0.3s ease; }
         .toast.success { background: #4caf50; }
         .toast.error { background: #f44336; }
-        .toast.info { background: #2196F3; }
+        .toast.info { background: var(--theme-main); }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .loading { text-align: center; padding: 40px; color: #999; }
         
-        .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #2196F3, #1976D2); padding: 20px; }
+        .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--theme-main), var(--theme-dark)); padding: 20px; }
         .login-card { background: white; border-radius: 20px; padding: 30px 24px; width: 100%; max-width: 350px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .login-card h2 { text-align: center; color: #2196F3; margin-bottom: 24px; font-size: 1.3rem; }
+        .login-card h2 { text-align: center; color: var(--theme-main); margin-bottom: 24px; font-size: 1.3rem; }
         
         .search-box { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; }
         .musteri-list { max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
@@ -105,6 +125,72 @@
     <script>
         const API_URL = window.location.origin;
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
+
+        // ===================== TEMA YÖNETİMİ =====================
+        const TEMALAR = [
+            { ad: 'Mavi',    ana: '#2196F3', koyu: '#1576C0', acik: '#e3f2fd' },
+            { ad: 'Sarı',    ana: '#F9A825', koyu: '#c67c00', acik: '#fff9e6' },
+            { ad: 'Yeşil',   ana: '#43A047', koyu: '#2e7d32', acik: '#e8f5e9' },
+            { ad: 'Kırmızı', ana: '#e53935', koyu: '#b71c1c', acik: '#ffebee' },
+            { ad: 'Mor',     ana: '#8e24aa', koyu: '#6a1b9a', acik: '#f3e5f5' },
+            { ad: 'Turuncu', ana: '#F4511E', koyu: '#bf360c', acik: '#fbe9e7' },
+            { ad: 'Teal',    ana: '#00897B', koyu: '#00695c', acik: '#e0f2f1' },
+            { ad: 'Gri',     ana: '#546e7a', koyu: '#37474f', acik: '#eceff1' },
+        ];
+
+        function temaUygula(ana, koyu, acik) {
+            const root = document.documentElement;
+            root.style.setProperty('--theme-main', ana);
+            root.style.setProperty('--theme-dark', koyu);
+            root.style.setProperty('--theme-light', acik);
+            document.querySelector('meta[name="theme-color"]')?.setAttribute('content', ana);
+            localStorage.setItem('tema', JSON.stringify({ ana, koyu, acik }));
+        }
+
+        function temayiYukle() {
+            try {
+                const t = JSON.parse(localStorage.getItem('tema'));
+                if (t) temaUygula(t.ana, t.koyu, t.acik);
+            } catch(e) {}
+        }
+
+        function renklSeciciAc() {
+            const mevcut = getComputedStyle(document.documentElement).getPropertyValue('--theme-main').trim();
+            const html = `<div class="color-picker-panel" id="renkPanel" onclick="if(event.target.id==='renkPanel')renkPanelKapat()">
+                <div class="color-picker-box">
+                    <h3>🎨 Tema Rengi Seç</h3>
+                    <div class="color-swatches">
+                        ${TEMALAR.map(t => `<div class="color-swatch${mevcut===t.ana?' active':''}" 
+                            style="background:${t.ana};" 
+                            title="${t.ad}"
+                            onclick="temaUygula('${t.ana}','${t.koyu}','${t.acik}');document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));this.classList.add('active')"></div>`).join('')}
+                    </div>
+                    <div class="custom-color-row">
+                        <label>🖌️ Özel renk:</label>
+                        <input type="color" id="ozelRenk" value="${mevcut}" onchange="ozelRenkUygula(this.value)">
+                        <span style="font-size:0.8rem;color:#666;">istediğiniz rengi seçin</span>
+                    </div>
+                    <button class="btn" onclick="renkPanelKapat()">Tamam</button>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        function ozelRenkUygula(hex) {
+            // Koyu versiyonu otomatik hesapla
+            const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+            const dk = (v) => Math.max(0, Math.floor(v*0.75)).toString(16).padStart(2,'0');
+            const koyu = `#${dk(r)}${dk(g)}${dk(b)}`;
+            const acik = `${hex}20`;
+            temaUygula(hex, koyu, acik);
+            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        }
+
+        function renkPanelKapat() {
+            document.getElementById('renkPanel')?.remove();
+        }
+        // ===================== TEMA YÖNETİMİ SONU =====================
+
         const groups = {
             depocu: [
                 { id: "pano", title: "📊 DİJİTAL PANO (DASHBOARD)", icon: "📊", desc: "Canlı operasyonel veriler", actions: [
@@ -130,9 +216,11 @@
                     { id: "excelExport", icon: "📤", text: "Verileri Dışarı Aktar", desc: "Excel'e veri aktar" },
                     { id: "stokExcelYukle", icon: "📦", text: "Toplu Stok Yükle", desc: "Excel'den toplu stok gir" }
                 ]},
+                { id: "raporlar_ana", title: "📊 RAPORLAR", icon: "📊", desc: "İstatistik ve raporlar", actions: [
+                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" }
+                ]},
                 { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
-                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
                     { id: "paletTipleri", icon: "🏷️", text: "Palet Tip Ekle Sil", desc: "Palet tiplerini yönet" },
                     { id: "yedekleme", icon: "💾", text: "Yedekleme", desc: "Veri yedekleme" },
                     { id: "sistemiSifirla", icon: "⚠️", text: "Sistemi Sıfırla", desc: "Hareket ve stokları temizle" }
@@ -161,9 +249,11 @@
                     { id: "excelExport", icon: "📤", text: "Verileri Dışarı Aktar", desc: "Excel'e veri aktar" },
                     { id: "stokExcelYukle", icon: "📦", text: "Toplu Stok Yükle", desc: "Excel'den toplu stok gir" }
                 ]},
+                { id: "raporlar_ana", title: "📊 RAPORLAR", icon: "📊", desc: "İstatistik ve raporlar", actions: [
+                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" }
+                ]},
                 { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
-                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
                     { id: "paletTipleri", icon: "🏷️", text: "Palet Tip Ekle Sil", desc: "Palet tiplerini yönet" },
                     { id: "yedekleme", icon: "💾", text: "Yedekleme", desc: "Veri yedekleme" },
                     { id: "sistemiSifirla", icon: "⚠️", text: "Sistemi Sıfırla", desc: "Hareket ve stokları temizle" }
@@ -218,6 +308,19 @@
             document.getElementById('app').innerHTML = `<div class="login-container"><div class="login-card"><h2>🏭 Palet Takip</h2><div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="kullanici_adi"></div><div class="form-group"><label>Şifre</label><input type="password" id="sifre"></div><button class="btn" onclick="login()">Giriş Yap</button></div></div>`;
         }
 
+        function headerHtml(rolLabel) {
+            return `<div class="header">
+                <h1>🏭 Palet Takip</h1>
+                <div class="user-info">
+                    <span>👤 ${currentUser.ad_soyad} (${rolLabel})</span>
+                    <div class="header-actions">
+                        <button class="color-picker-btn" onclick="renklSeciciAc()">🎨 Tema</button>
+                        <button class="logout-btn" onclick="logout()">Çıkış</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
         async function login() {
             let k = document.getElementById('kullanici_adi').value, s = document.getElementById('sifre').value;
             if (!k || !s) { showToast('Kullanıcı adı ve şifre giriniz', 'error'); return; }
@@ -267,11 +370,11 @@
             let list = isDepocu ? groups.depocu : isForklift ? getFilteredForkliftGroups() : getFilteredDagiticiGroups();
             let rolLabel = isDepocu ? 'Depocu' : isForklift ? 'Forklift Operatörü' : 'Dağıtıcı';
             if (currentLevel === 0) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${rolLabel})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="container">${list.map(g => `<div class="menu-group-card" onclick="goToGroup('${g.id}')"><div><span class="icon">${g.icon}</span><span class="title">${g.title}</span></div><div class="desc">${g.desc}</div></div>`).join('')}</div>`;
+                document.getElementById('app').innerHTML = `${headerHtml(rolLabel)}<div class="container">${list.map(g => `<div class="menu-group-card" onclick="goToGroup('${g.id}')"><div><span class="icon">${g.icon}</span><span class="title">${g.title}</span></div><div class="desc">${g.desc}</div></div>`).join('')}</div>`;
             } else if (currentLevel === 1 && currentGroup) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${rolLabel})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container"><div class="action-buttons">${currentGroup.actions.map(a => `<button class="action-btn" onclick="goToAction('${a.id}')"><span class="icon">${a.icon}</span><span>${a.text}</span><span style="font-size:0.65rem;color:#999;">${a.desc}</span></button>`).join('')}</div><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div>`;
+                document.getElementById('app').innerHTML = `${headerHtml(rolLabel)}<div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container"><div class="action-buttons">${currentGroup.actions.map(a => `<button class="action-btn" onclick="goToAction('${a.id}')"><span class="icon">${a.icon}</span><span>${a.text}</span><span style="font-size:0.65rem;color:#999;">${a.desc}</span></button>`).join('')}</div><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div>`;
             } else if (currentLevel === 2 && currentAction) {
-                document.getElementById('app').innerHTML = `<div class="header"><h1>🏭 Palet Takip</h1><div class="user-info"><span>👤 ${currentUser.ad_soyad} (${rolLabel})</span><button class="logout-btn" onclick="logout()">Çıkış</button></div></div><div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container" id="content"></div>`;
+                document.getElementById('app').innerHTML = `${headerHtml(rolLabel)}<div class="breadcrumb">${getBreadcrumb().map((item, idx) => { let sep = idx > 0 ? '<span class="separator">›</span>' : ''; if (item.action) { return `${sep}<a href="#" onclick="(${item.action.toString()})(); return false;">${item.label}</a>`; } else { return `${sep}<span class="current">${item.label}</span>`; } }).join('')}</div><div class="container" id="content"></div>`;
                 await loadActionContent(document.getElementById('content'), currentAction.id);
                 document.getElementById('content').innerHTML += `<button class="btn btn-secondary" onclick="goBack()" style="margin-top:16px;">🔙 Geri Dön</button>`;
             }
@@ -949,6 +1052,7 @@
         }
 
         window.onload = () => {
+            temayiYukle();
             let savedToken = localStorage.getItem('token'), savedUser = localStorage.getItem('user');
             if (savedToken && savedUser) { token = savedToken; currentUser = JSON.parse(savedUser); goToMainMenu(); } else { renderLogin(); }
         };
