@@ -76,9 +76,15 @@ def db_execute(cursor, conn, sql, params=()):
 def veritabani_olustur():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS kullanicilar (id SERIAL PRIMARY KEY, kullanici_adi TEXT UNIQUE NOT NULL, sifre TEXT NOT NULL, tip TEXT NOT NULL, ad_soyad TEXT NOT NULL, kisitlamalar TEXT DEFAULT \'\')''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS kullanicilar (id SERIAL PRIMARY KEY, kullanici_adi TEXT UNIQUE NOT NULL, sifre TEXT NOT NULL, tip TEXT NOT NULL, ad_soyad TEXT NOT NULL, kisitlamalar TEXT DEFAULT \'\', aktif INTEGER DEFAULT 1)''')
     try:
         cursor.execute("ALTER TABLE kullanicilar ADD COLUMN kisitlamalar TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    try:
+        cursor.execute("ALTER TABLE kullanicilar ADD COLUMN aktif INTEGER DEFAULT 1")
+        cursor.execute("UPDATE kullanicilar SET aktif = 1 WHERE aktif IS NULL")
         conn.commit()
     except Exception:
         conn.rollback()
@@ -215,7 +221,7 @@ def login():
     data = request.get_json()
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, kullanici_adi, tip, ad_soyad, COALESCE(kisitlamalar, '') FROM kullanicilar WHERE kullanici_adi = %s AND sifre = %s", (data.get('kullanici_adi'), hash_sifre(data.get('sifre'))))
+    cursor.execute("SELECT id, kullanici_adi, tip, ad_soyad, COALESCE(kisitlamalar, '') FROM kullanicilar WHERE kullanici_adi = %s AND sifre = %s AND COALESCE(aktif,1) = 1", (data.get('kullanici_adi'), hash_sifre(data.get('sifre'))))
     kullanici = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -232,7 +238,7 @@ def get_kullanici_listesi(current_user):
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, kullanici_adi, ad_soyad, COALESCE(kisitlamalar, ''), tip FROM kullanicilar WHERE tip IN ('DAGITICI', 'FORKLIFT') ORDER BY tip, ad_soyad")
+    cursor.execute("SELECT id, kullanici_adi, ad_soyad, COALESCE(kisitlamalar, ''), tip FROM kullanicilar WHERE tip IN ('DAGITICI', 'FORKLIFT') AND COALESCE(aktif,1) = 1 ORDER BY tip, ad_soyad")
     sonuc = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -349,13 +355,22 @@ def kullanici_sil(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        db_execute(cursor, conn, "DELETE FROM stoklar WHERE stok_sahibi_tip='DAGITICI' AND stok_sahibi_id=%s", (uid,))
-        db_execute(cursor, conn, "DELETE FROM kullanicilar WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
+        # Gerçekten silmek yerine pasife al - geçmiş hareketler korunur
+        conn2 = conn  # tip kontrolü için
+        if getattr(conn2, '_db_type', 'postgres') == 'sqlite':
+            cursor.execute("UPDATE kullanicilar SET aktif=0, kullanici_adi=kullanici_adi||'_silindi_'||CAST(id AS TEXT) WHERE id=? AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
+        else:
+            cursor.execute("UPDATE kullanicilar SET aktif=0, kullanici_adi=kullanici_adi||'_silindi_'||id::text WHERE id=%s AND tip IN ('DAGITICI','FORKLIFT')", (uid,))
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'hata': 'Kullanıcı bulunamadı'}), 404
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({'success': True, 'mesaj': 'Dağıtıcı silindi'})
+        return jsonify({'success': True, 'mesaj': 'Kullanıcı silindi'})
     except Exception as e:
+        conn.rollback()
         cursor.close()
         conn.close()
         return jsonify({'hata': str(e)}), 400
