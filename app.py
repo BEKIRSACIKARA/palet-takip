@@ -204,7 +204,10 @@ def login():
 @app.route('/api/kullanici_listesi', methods=['GET'])
 @token_required
 def get_kullanici_listesi(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    # Forklift operatörüne de depocu ile aynı yetkiyi tanımlıyoruz
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -214,6 +217,41 @@ def get_kullanici_listesi(current_user):
     conn.close()
     return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
 
+@app.route('/api/forklift_operatoru_listesi', methods=['GET'])
+@token_required
+def get_forklift_operatoru_listesi(current_user):
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip = 'FORKLIFT_OPERATORU' ORDER BY ad_soyad")
+    sonuc = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
+
+@app.route('/api/forklift_operatoru_ekle', methods=['POST'])
+@token_required
+def forklift_operatoru_ekle(current_user):
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    data = request.get_json()
+    kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) VALUES (%s, %s, %s, %s) RETURNING id", 
+                       (kullanici_adi, hash_sifre(sifre), 'FORKLIFT_OPERATORU', ad_soyad))
+        op_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'id': op_id, 'mesaj': 'Forklift Operatörü başarıyla eklendi'})
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({'hata': str(e)}), 400
 
 @app.route('/api/dagitici_listesi', methods=['GET'])
 @token_required
@@ -230,7 +268,7 @@ def get_dagitici_listesi(current_user):
 @app.route('/api/dagitici_ekle', methods=['POST'])
 @token_required
 def dagitici_ekle(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
@@ -271,7 +309,7 @@ def get_tum_musteriler(current_user):
 @app.route('/api/musteri_ekle', methods=['POST'])
 @token_required
 def musteri_ekle(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     musteri_kodu, musteri_adi, tabela_adi = data.get('musteri_kodu'), data.get('musteri_adi'), data.get('tabela_adi')
@@ -619,7 +657,7 @@ def get_hareketler_filtreli(current_user):
 @app.route('/api/depo_stok_hareket', methods=['POST'])
 @token_required
 def depo_stok_hareket(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     palet_tipi_id, miktar, islem_tipi, aciklama = data.get('palet_tipi_id'), data.get('miktar'), data.get('islem_tipi'), data.get('aciklama', '')
@@ -660,7 +698,7 @@ def depo_stok_hareket(current_user):
 @app.route('/api/rapor/istatistikler', methods=['GET'])
 @token_required
 def rapor_istatistikler(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -676,7 +714,7 @@ def rapor_istatistikler(current_user):
 @app.route('/api/rapor/export', methods=['POST'])
 @token_required
 def rapor_export(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     rapor_tipi, baslangic, bitis = data.get('rapor_tipi'), data.get('baslangic_tarihi'), data.get('bitis_tarihi')
@@ -765,7 +803,7 @@ def rapor_export(current_user):
 @app.route('/api/rapor/pdf', methods=['POST'])
 @token_required
 def rapor_pdf(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     rapor_tipi = data.get('rapor_tipi', 'hareketler')
@@ -850,7 +888,7 @@ def rapor_pdf(current_user):
 @app.route('/api/musteri_excel_yukle', methods=['POST'])
 @token_required
 def musteri_excel_yukle(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     if 'file' not in request.files:
         return jsonify({'hata': 'Dosya bulunamadı'}), 400
@@ -908,7 +946,7 @@ def musteri_excel_yukle(current_user):
 @app.route('/api/yedekle', methods=['GET'])
 @token_required
 def yedekle(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -934,7 +972,7 @@ def yedekle(current_user):
 @app.route('/api/yedekleme_ayarla', methods=['POST'])
 @token_required
 def yedekleme_ayarla(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json()
     aktif, periyot, saat = data.get('aktif', False), data.get('periyot', 'gunluk'), data.get('saat', '03:00')
@@ -952,7 +990,7 @@ def yedekleme_ayarla(current_user):
 @app.route('/api/yedekleme_ayarlari', methods=['GET'])
 @token_required
 def yedekleme_ayarlari(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -967,7 +1005,7 @@ def yedekleme_ayarlari(current_user):
 @app.route('/api/hareketleri_sifirla', methods=['POST'])
 @token_required
 def hareketleri_sifirla(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -989,7 +1027,7 @@ def hareketleri_sifirla(current_user):
 @app.route('/api/stok_excel_yukle', methods=['POST'])
 @token_required
 def stok_excel_yukle(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     if 'file' not in request.files:
         return jsonify({'hata': 'Dosya bulunamadı'}), 400
@@ -1073,7 +1111,7 @@ def stok_excel_yukle(current_user):
 @app.route('/api/rapor/dashboard', methods=['POST'])
 @token_required
 def rapor_dashboard(current_user):
-    if current_user['tip'] != 'DEPOCU':
+    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
     data = request.get_json() or {}
     baslangic = data.get('baslangic_tarihi')
