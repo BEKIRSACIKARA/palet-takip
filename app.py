@@ -217,37 +217,30 @@ def get_kullanici_listesi(current_user):
     conn.close()
     return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
 
-@app.route('/api/forklift_operatoru_listesi', methods=['GET'])
-@token_required
-def get_forklift_operatoru_listesi(current_user):
-    if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
-        return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, kullanici_adi, ad_soyad FROM kullanicilar WHERE tip = 'FORKLIFT_OPERATORU' ORDER BY ad_soyad")
-    sonuc = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return jsonify([{'id': k[0], 'kullanici_adi': k[1], 'ad_soyad': k[2]} for k in sonuc])
-
 @app.route('/api/forklift_operatoru_ekle', methods=['POST'])
 @token_required
 def forklift_operatoru_ekle(current_user):
+    # Yetki Kontrolü: Sadece DEPOCU veya FORKLIFT_OPERATORU ekleme yapabilsin
     if current_user['tip'] not in ['DEPOCU', 'FORKLIFT_OPERATORU']:
         return jsonify({'hata': 'Yetkisiz erişim'}), 403
-    data = request.get_json()
-    kullanici_adi, ad_soyad, sifre = data.get('kullanici_adi'), data.get('ad_soyad'), data.get('sifre')
     
+    data = request.get_json()
+    kullanici_adi = data.get('kullanici_adi')
+    ad_soyad = data.get('ad_soyad')
+    sifre = data.get('sifre')
+    
+    if not kullanici_adi or not ad_soyad or not sifre:
+        return jsonify({'hata': 'Tüm alanlar gerekli'}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) VALUES (%s, %s, %s, %s) RETURNING id", 
+        cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) VALUES (%s, %s, %s, %s)", 
                        (kullanici_adi, hash_sifre(sifre), 'FORKLIFT_OPERATORU', ad_soyad))
-        op_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({'success': True, 'id': op_id, 'mesaj': 'Forklift Operatörü başarıyla eklendi'})
+        return jsonify({'success': True, 'mesaj': 'Forklift Operatörü başarıyla eklendi'})
     except Exception as e:
         cursor.close()
         conn.close()
