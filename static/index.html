@@ -217,7 +217,8 @@
                     { id: "stokExcelYukle", icon: "📦", text: "Toplu Stok Yükle", desc: "Excel'den toplu stok gir" }
                 ]},
                 { id: "raporlar_ana", title: "📊 RAPORLAR", icon: "📊", desc: "İstatistik ve raporlar", actions: [
-                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" }
+                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
+                    { id: "bildirimAyarlari", icon: "📧", text: "Otomatik Bildirim Ayarları", desc: "E-posta/WhatsApp günlük rapor" }
                 ]},
                 { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
@@ -250,7 +251,8 @@
                     { id: "stokExcelYukle", icon: "📦", text: "Toplu Stok Yükle", desc: "Excel'den toplu stok gir" }
                 ]},
                 { id: "raporlar_ana", title: "📊 RAPORLAR", icon: "📊", desc: "İstatistik ve raporlar", actions: [
-                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" }
+                    { id: "raporlar", icon: "📊", text: "Raporlar", desc: "İstatistik ve raporlar" },
+                    { id: "bildirimAyarlari", icon: "📧", text: "Otomatik Bildirim Ayarları", desc: "E-posta/WhatsApp günlük rapor" }
                 ]},
                 { id: "duzenleme", title: "⚙️ STOK ve PALET TİP DÜZENLEME", icon: "⚙️", desc: "Stok ve palet düzenlemeleri", actions: [
                     { id: "depoStokDuzenle", icon: "✏️", text: "Depo Stok Düzenleme", desc: "Depo stok arttır/azalt" },
@@ -405,6 +407,7 @@
             else if (aid === 'toplanacakPaletler') await showToplanacakPaletler(div);
             else if (aid === 'kendiVerimliligim') await showKendiVerimliligim(div);
             else if (aid === 'top10Musteri') await showTop10Musteri(div);
+            else if (aid === 'bildirimAyarlari') await showBildirimAyarlari(div);
         }
 
         // --- YARDIMCI FONKSİYONLAR ---
@@ -1272,6 +1275,168 @@
                 let d = r.data, oRenk = d.verim.oran >= 85 ? '#4caf50' : (d.verim.oran >= 60 ? '#ff9800' : '#f44336');
                 pDiv.innerHTML = `<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:20px;"><div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DEPO</div><div style="font-size:1.5rem; font-weight:bold; color:#2196F3;">${d.stok.depo}</div></div><div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">DAĞITICI</div><div style="font-size:1.5rem; font-weight:bold; color:#ff9800;">${d.stok.dagitici}</div></div><div class="card" style="text-align:center; padding:15px;"><div style="font-size:0.7rem; color:#666;">MÜŞTERİ</div><div style="font-size:1.5rem; font-weight:bold; color:#f44336;">${d.stok.musteri}</div></div></div><div class="card"><div class="card-title">🚀 Toplama Verimliliği: %${d.verim.oran}</div><div style="background:#eee; height:20px; border-radius:10px; overflow:hidden;"><div style="width:${d.verim.oran > 100 ? 100 : d.verim.oran}%; background:${oRenk}; height:100%; transition:width 1s ease-in-out;"></div></div><div style="display:flex; justify-content:space-between; margin-top:10px; font-size:0.8rem;"><span>Verilen: <strong>${d.verim.v}</strong></span><span>Toplanan: <strong>${d.verim.t}</strong></span></div></div><div class="card"><div class="card-title">⚠️ Kırmızı Liste (Bekleyen Paletler)</div><table class="stok-table">${d.bekleyen.map(m => `<tr><td>${m.ad}</td><td class="miktar az">${m.miktar}</td></tr>`).join('')}</table></div><div class="card"><div class="card-title">🚚 Dağıtıcı Karnesi</div><table class="stok-table"><thead><tr><th>Ad</th><th>V</th><th>T</th></tr></thead><tbody>${d.perf.map(p => `<tr><td>${p.ad}</td><td style="color:#f44336;">${p.verilen}</td><td style="color:#4caf50; font-weight:bold;">${p.toplanan}</td></tr>`).join('')}</tbody></table></div>`;
             } catch (error) { pDiv.innerHTML = `<div class="card" style="color:red; font-weight:bold;">❌ Javascript Hatası: ${error.message}</div>`; }
+        }
+
+
+        // ============================================================
+        // BİLDİRİM AYARLARI EKRANI
+        // ============================================================
+
+        async function showBildirimAyarlari(div) {
+            div.innerHTML = '<div class="loading">Ayarlar yükleniyor...</div>';
+            let r = await apiCall('/api/bildirim_ayarlari');
+            let a = r?.data || {};
+
+            div.innerHTML = `
+            <div class="card">
+                <div class="card-title">📧 E-Posta Bildirimi</div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" id="email_aktif" style="width:18px;height:18px;" ${a.email_aktif==='1'?'checked':''}>
+                        <span>E-posta bildirimi aktif</span>
+                    </label>
+                </div>
+                <div class="form-group"><label>Gönderen E-posta</label><input type="email" id="email_gonderen" value="${a.email_gonderen||''}" placeholder="ornek@gmail.com"></div>
+                <div class="form-group"><label>Uygulama Şifresi <span style="font-size:0.72rem;color:#999;">(Gmail için uygulama şifresi)</span></label><input type="password" id="email_sifre" value="${a.email_sifre||''}" placeholder="Gmail uygulama şifresi"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>SMTP Sunucu</label><input type="text" id="email_smtp" value="${a.email_smtp||'smtp.gmail.com'}" placeholder="smtp.gmail.com"></div>
+                    <div class="form-group"><label>Port</label><input type="number" id="email_port" value="${a.email_port||'587'}" placeholder="587"></div>
+                </div>
+                <div class="form-group"><label>Alıcı E-postalar <span style="font-size:0.72rem;color:#999;">(virgülle ayır)</span></label><input type="text" id="email_alicilar" value="${a.email_alicilar||''}" placeholder="yonetici@firma.com, depo@firma.com"></div>
+                <div style="background:#e3f2fd;border-radius:8px;padding:10px;font-size:0.78rem;color:#1565c0;margin-bottom:10px;">
+                    💡 <b>Gmail Kullanıcıları:</b> Google hesabınızda "2 adımlı doğrulama" açık olmalı. Sonra <b>Google Hesabı → Güvenlik → Uygulama Şifreleri</b> bölümünden şifre oluşturun.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">💬 WhatsApp Bildirimi <span style="font-size:0.75rem;color:#999;">(Twilio)</span></div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" id="whatsapp_aktif" style="width:18px;height:18px;" ${a.whatsapp_aktif==='1'?'checked':''}>
+                        <span>WhatsApp bildirimi aktif</span>
+                    </label>
+                </div>
+                <div class="form-group"><label>Twilio Account SID</label><input type="text" id="twilio_sid" value="${a.twilio_sid||''}" placeholder="ACxxxxxxxxxxxxxxxx"></div>
+                <div class="form-group"><label>Twilio Auth Token</label><input type="password" id="twilio_token" value="${a.twilio_token||''}" placeholder="Auth token"></div>
+                <div class="form-group"><label>Twilio WhatsApp Numarası <span style="font-size:0.72rem;color:#999;">(+14155238886 formatında)</span></label><input type="text" id="twilio_from" value="${a.twilio_from||''}" placeholder="+14155238886"></div>
+                <div class="form-group"><label>Alıcı Numaralar <span style="font-size:0.72rem;color:#999;">(virgülle ayır, +905xx formatında)</span></label><input type="text" id="whatsapp_alicilar" value="${a.whatsapp_alicilar||''}" placeholder="+905001234567, +905009876543"></div>
+                <div style="background:#e8f5e9;border-radius:8px;padding:10px;font-size:0.78rem;color:#2e7d32;margin-bottom:10px;">
+                    💡 <b>Twilio Sandbox:</b> twilio.com adresinden ücretsiz hesap açın. Sandbox numarası ile test yapabilirsiniz. Alıcıların sandbox'a katılması gerekir.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">⚙️ Zamanlama ve Kapsam</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Günlük Gönderim Saati</label><input type="time" id="bildirim_saati" value="${a.bildirim_saati||'08:00'}"></div>
+                    <div class="form-group"><label>Minimum Gün Eşiği <span style="font-size:0.72rem;color:#999;">(bu günden eski paletler)</span></label><input type="number" id="min_gun" value="${a.min_gun||'21'}" min="1" max="365"></div>
+                </div>
+                <p style="font-size:0.8rem;color:#666;">Sistem her gün belirlenen saatte otomatik rapor gönderir. Sunucu çalıştığı sürece aktiftir.</p>
+            </div>
+
+            <div class="card">
+                <button class="btn" onclick="bildirimAyarlariKaydet()" style="background:#4caf50;margin-bottom:10px;">💾 Ayarları Kaydet</button>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                    <button class="btn" onclick="bildirimOnizle()" style="background:#1976d2;">🔍 Rapor Önizleme</button>
+                    <button class="btn" onclick="bildirimManuelGonder()" style="background:#f44336;">📤 Şimdi Gönder</button>
+                </div>
+                <div id="bildirimSonuc"></div>
+            </div>
+
+            <div id="onizlemeDiv"></div>`;
+        }
+
+        async function bildirimAyarlariKaydet() {
+            let data = {
+                email_aktif:       document.getElementById('email_aktif').checked ? '1' : '0',
+                email_gonderen:    document.getElementById('email_gonderen').value,
+                email_sifre:       document.getElementById('email_sifre').value,
+                email_smtp:        document.getElementById('email_smtp').value,
+                email_port:        document.getElementById('email_port').value,
+                email_alicilar:    document.getElementById('email_alicilar').value,
+                whatsapp_aktif:    document.getElementById('whatsapp_aktif').checked ? '1' : '0',
+                twilio_sid:        document.getElementById('twilio_sid').value,
+                twilio_token:      document.getElementById('twilio_token').value,
+                twilio_from:       document.getElementById('twilio_from').value,
+                whatsapp_alicilar: document.getElementById('whatsapp_alicilar').value,
+                bildirim_saati:    document.getElementById('bildirim_saati').value,
+                min_gun:           document.getElementById('min_gun').value,
+            };
+            let r = await apiCall('/api/bildirim_ayarlari', { method: 'POST', body: JSON.stringify(data) });
+            if (r?.status === 200) showToast('✅ Ayarlar kaydedildi', 'success');
+            else showToast('❌ Kaydedilemedi', 'error');
+        }
+
+        async function bildirimManuelGonder() {
+            let sonucDiv = document.getElementById('bildirimSonuc');
+            sonucDiv.innerHTML = '<div class="loading">Gönderiliyor...</div>';
+            let r = await apiCall('/api/bildirim_gonder', { method: 'POST' });
+            if (r?.data?.success) {
+                let html = `<div style="background:#e8f5e9;border-radius:8px;padding:12px;margin-top:8px;">
+                    <strong style="color:#2e7d32;">✅ Gönderim Tamamlandı</strong><br>
+                    <small>${r.data.dagitici_sayisi} dağıtıcı raporu hazırlandı</small><br>`;
+                (r.data.sonuclar || []).forEach(s => {
+                    let renk = s.basarili ? '#2e7d32' : '#c62828';
+                    let icon = s.basarili ? '✅' : '⚠️';
+                    html += `<div style="margin-top:6px;font-size:0.85rem;color:${renk};">${icon} <b>${s.kanal}:</b> ${s.mesaj}</div>`;
+                });
+                html += '</div>';
+                sonucDiv.innerHTML = html;
+            } else {
+                sonucDiv.innerHTML = `<div style="background:#ffebee;border-radius:8px;padding:12px;margin-top:8px;color:#c62828;">❌ ${r?.data?.hata || 'Gönderilemedi'}</div>`;
+            }
+        }
+
+        async function bildirimOnizle() {
+            let onizDiv = document.getElementById('onizlemeDiv');
+            onizDiv.innerHTML = '<div class="loading">Rapor verisi hazırlanıyor...</div>';
+            let r = await apiCall('/api/bildirim_onizleme');
+            if (!r?.data?.ozet) {
+                onizDiv.innerHTML = '<div class="card" style="color:red;">❌ Önizleme alınamadı</div>';
+                return;
+            }
+            let ozet = r.data.ozet;
+            let minGun = r.data.min_gun;
+            if (ozet.length === 0) {
+                onizDiv.innerHTML = '<div class="card" style="background:#e8f5e9;color:#2e7d32;text-align:center;padding:20px;">✅ ' + minGun + '+ gün bekleyen palet bulunmuyor. Gönderilecek rapor yok.</div>';
+                return;
+            }
+            let dagHTML = ozet.map(d => {
+                let mRows = d.musteriler.map(m => {
+                    let pStr = m.paletler.map(p => `<span style="background:#e3f2fd;border-radius:4px;padding:2px 6px;font-size:0.8rem;margin:1px;">${p.adet}× ${p.palet}</span>`).join(' ');
+                    return `<tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:6px 10px;font-size:0.85rem;">${m.musteri_kodu} - ${m.musteri_adi}</td>
+                        <td style="padding:6px 10px;text-align:center;font-weight:700;color:#b71c1c;">${m.toplam}</td>
+                        <td style="padding:6px 10px;">${pStr}</td>
+                    </tr>`;
+                }).join('');
+                return `<div class="card" style="margin-bottom:10px;padding:0;overflow:hidden;">
+                    <div style="background:#1565c0;color:white;padding:10px 14px;display:flex;justify-content:space-between;">
+                        <span>🚚 ${d.dagitici}</span>
+                        <span style="font-size:0.85rem;opacity:0.9;">${d.musteri_sayisi} müşteri · ${d.toplam_palet} palet</span>
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr style="background:#e3f2fd;">
+                            <th style="padding:6px 10px;text-align:left;font-size:0.8rem;color:#1565c0;">Müşteri</th>
+                            <th style="padding:6px 10px;text-align:center;font-size:0.8rem;color:#1565c0;width:60px;">Adet</th>
+                            <th style="padding:6px 10px;text-align:left;font-size:0.8rem;color:#1565c0;">Palet Tipleri</th>
+                        </tr></thead>
+                        <tbody>${mRows}</tbody>
+                    </table>
+                </div>`;
+            }).join('');
+
+            let toplamPalet = ozet.reduce((a,d) => a + d.toplam_palet, 0);
+            onizDiv.innerHTML = `
+                <div class="card" style="border-left:4px solid #b71c1c;">
+                    <div class="card-title">🔍 Rapor Önizlemesi (${minGun}+ Gün)</div>
+                    <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+                        <div style="text-align:center;"><div style="font-size:0.72rem;color:#666;">DAĞITICI</div><strong style="font-size:1.4rem;color:#1565c0;">${ozet.length}</strong></div>
+                        <div style="text-align:center;"><div style="font-size:0.72rem;color:#666;">MÜŞTERİ</div><strong style="font-size:1.4rem;color:#f44336;">${ozet.reduce((a,d)=>a+d.musteri_sayisi,0)}</strong></div>
+                        <div style="text-align:center;"><div style="font-size:0.72rem;color:#666;">PALET</div><strong style="font-size:1.4rem;color:#b71c1c;">${toplamPalet}</strong></div>
+                    </div>
+                    ${dagHTML}
+                </div>`;
         }
 
         window.onload = () => {
