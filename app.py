@@ -507,43 +507,57 @@ def transfer_yap(current_user):
     transfer_data = {'islem_tipi': hareket_tipi, 'yapan_id': kullanici_id, 'yapan_adi': f"{kullanici_adi} ({kullanici_kadi})", 'detaylar': [], 'toplam_miktar': miktar}
     if kullanici_tip in ('DEPOCU', 'FORKLIFT'):
         if hareket_tipi == 'DEPO_DAGITICI':
+            # DEPO -> DAGITICI: alici_id her zaman kullanicilar tablosundaki DAGITICI id'sidir
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
-            alan_tip, alan_id = None, alici_id
+            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip IN ('DAGITICI', 'FORKLIFT')", (alici_id,))
+            dagitici = cursor.fetchone()
+            if not dagitici:
+                cursor.close()
+                conn.close()
+                return jsonify({'hata': 'Gecersiz dagitici ID'}), 400
+            alan_tip = SAHIP_TIP_DAGITICI
+            alan_id = alici_id
+            alan_adi = f"{dagitici[0]} ({dagitici[1]})"
+            aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dagitici transfer edildi"
+        elif hareket_tipi == 'DEPO_MUSTERI':
+            # DEPO -> MUSTERI: alici_id her zaman musteriler tablosundaki id'dir
+            gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
             musteri = cursor.fetchone()
-            if musteri:
-                alan_tip = SAHIP_TIP_MUSTERI
-                alan_adi = f"{musteri[0]} - {musteri[1]}"
-                aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisine (Depodan Doğrudan) verildi"
-            else:
-                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-                dagitici = cursor.fetchone()
-                if not dagitici:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz alıcı ID (Müşteri veya Dağıtıcı bulunamadı)'}), 400
-                alan_tip = SAHIP_TIP_DAGITICI
-                alan_adi = f"{dagitici[0]} ({dagitici[1]})"
-                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
+            if not musteri:
+                cursor.close()
+                conn.close()
+                return jsonify({'hata': 'Gecersiz musteri ID'}), 400
+            alan_tip = SAHIP_TIP_MUSTERI
+            alan_id = alici_id
+            alan_adi = f"{musteri[0]} - {musteri[1]}"
+            aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} musterisine (Depodan Dogrudan) verildi"
         elif hareket_tipi == 'DAGITICI_DEPO':
+            # DAGITICI -> DEPO: alici_id kullanicilar tablosundaki DAGITICI id'sidir
             alan_tip, alan_id, alan_adi = SAHIP_TIP_DEPO, 0, "DEPO"
-            gonderen_tip, gonderen_id = None, alici_id
+            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip IN ('DAGITICI', 'FORKLIFT')", (alici_id,))
+            dagitici = cursor.fetchone()
+            if not dagitici:
+                cursor.close()
+                conn.close()
+                return jsonify({'hata': 'Gecersiz dagitici ID'}), 400
+            gonderen_tip = SAHIP_TIP_DAGITICI
+            gonderen_id = alici_id
+            gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
+            aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dagiticisindan iade alindi"
+        elif hareket_tipi == 'MUSTERI_DEPO':
+            # MUSTERI -> DEPO: alici_id musteriler tablosundaki id'dir
+            alan_tip, alan_id, alan_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
             musteri = cursor.fetchone()
-            if musteri:
-                gonderen_tip = SAHIP_TIP_MUSTERI
-                gonderen_adi = f"{musteri[0]} - {musteri[1]}"
-                aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisinden (Depoya Doğrudan) iade alındı"
-            else:
-                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-                dagitici = cursor.fetchone()
-                if not dagitici:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
-                gonderen_tip = SAHIP_TIP_DAGITICI
-                gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
-                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısından iade alındı"
+            if not musteri:
+                cursor.close()
+                conn.close()
+                return jsonify({'hata': 'Gecersiz musteri ID'}), 400
+            gonderen_tip = SAHIP_TIP_MUSTERI
+            gonderen_id = alici_id
+            gonderen_adi = f"{musteri[0]} - {musteri[1]}"
+            aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} musterisinden (Depoya Dogrudan) iade alindi"
     elif kullanici_tip == 'DAGITICI':
         if hareket_tipi == 'DAGITICI_MUSTERI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DAGITICI, kullanici_id, f"{kullanici_adi} ({kullanici_kadi})"
@@ -652,7 +666,7 @@ def makbuz_pdf(current_user, makbuz_no):
     story.append(Paragraph("KONYA BÖLGE DEPO", title_style))
     story.append(Paragraph("PALET İŞLEM MAKBUZU", title_style))
     story.append(Spacer(1, 20))
-    tip_text = {'DEPO_DAGITICI': 'Depo → Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı → Müşteri', 'MUSTERI_DAGITICI': 'Müşteri → Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı → Depo'}.get(makbuz[3], makbuz[3])
+    tip_text = {'DEPO_DAGITICI': 'Depo → Dağıtıcı', 'DEPO_MUSTERI': 'Depo → Müşteri', 'MUSTERI_DEPO': 'Müşteri → Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı → Müşteri', 'MUSTERI_DAGITICI': 'Müşteri → Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı → Depo'}.get(makbuz[3], makbuz[3])
     data = [
         ['Makbuz No:', makbuz[1]], 
         ['Tarih:', makbuz[2]], 
@@ -704,7 +718,7 @@ def get_hareketler(current_user):
     conn.close()
     hareketler = []
     for h in sonuc:
-        tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(h[3], h[3])
+        tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DEPO_MUSTERI': 'Depo→Müşteri', 'MUSTERI_DEPO': 'Müşteri→Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(h[3], h[3])
         hareketler.append({'tarih': h[0], 'yapan': f"{h[2]} ({h[1]})", 'islem_tipi': tip_text, 'stok_kodu': h[4], 'palet_adi': h[5], 'miktar': h[6], 'aciklama': h[7], 'makbuz_no': h[8]})
     return jsonify(hareketler)
 
@@ -739,7 +753,7 @@ def get_hareketler_filtreli(current_user):
     conn.close()
     hareketler = []
     for h in sonuc:
-        tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(h[3], h[3])
+        tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DEPO_MUSTERI': 'Depo→Müşteri', 'MUSTERI_DEPO': 'Müşteri→Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(h[3], h[3])
         hareketler.append({'tarih': h[0], 'yapan': f"{h[2]} ({h[1]})", 'islem_tipi': tip_text, 'stok_kodu': h[4], 'palet_adi': h[5], 'miktar': h[6], 'aciklama': h[7], 'makbuz_no': h[8], 'ilgili_dagitici': h[9] or '-'})
     return jsonify(hareketler)
 
@@ -890,7 +904,7 @@ def rapor_export(current_user):
         else:
             cursor.execute("SELECT h.tarih, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.makbuz_no, h.aciklama FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id ORDER BY h.tarih DESC LIMIT 1000")
         for row_idx, row in enumerate(cursor.fetchall(), 2):
-            tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(row[2], row[2])
+            tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DEPO_MUSTERI': 'Depo→Müşteri', 'MUSTERI_DEPO': 'Müşteri→Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(row[2], row[2])
             sheet.cell(row=row_idx, column=1, value=row[0])
             sheet.cell(row=row_idx, column=2, value=row[1])
             sheet.cell(row=row_idx, column=3, value=tip_text)
@@ -989,7 +1003,7 @@ def rapor_pdf(current_user):
         sonuc = cursor.fetchall()
         data = [['Tarih', 'Yapan', 'İşlem Tipi', 'Stok Kodu', 'Palet Adı', 'Miktar', 'Makbuz No', 'Açıklama']]
         for row in sonuc:
-            tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(row[2], row[2])
+            tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DEPO_MUSTERI': 'Depo→Müşteri', 'MUSTERI_DEPO': 'Müşteri→Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(row[2], row[2])
             data.append([row[0][:16], row[1], tip_text, row[3], row[4], str(row[5]), row[7] or '-', (row[6][:40] + '...') if row[6] and len(row[6]) > 40 else (row[6] or '')])
         table = Table(data, colWidths=[80, 70, 80, 60, 70, 40, 90, 100])
         table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, 0), 8), ('FONTSIZE', (0, 1), (-1, -1), 7), ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)]))
