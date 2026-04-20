@@ -1441,13 +1441,6 @@ def toplanacak_paletler(current_user):
         conn.close()
 
 
-if __name__ == '__main__':
-    veritabani_olustur()
-    zamanlayici_baslat()
-    from waitress import serve
-    port = int(os.environ.get('PORT', 5000))
-    serve(app, host='0.0.0.0', port=port, threads=4)
-
 # ============================================================
 # BİLDİRİM SİSTEMİ - AYARLAR API
 # ============================================================
@@ -1886,3 +1879,12 @@ def zamanlayici_baslat():
     _zamanlayici_aktif = True
     _zamanlayici_thread = threading.Thread(target=zamanlayici_dongu, daemon=True)
     _zamanlayici_thread.start()
+
+
+
+if __name__ == '__main__':
+    veritabani_olustur()
+    zamanlayici_baslat()
+    from waitress import serve
+    port = int(os.environ.get('PORT', 5000))
+    serve(app, host='0.0.0.0', port=port, threads=4)
