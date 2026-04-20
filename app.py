@@ -503,41 +503,45 @@ def transfer_yap(current_user):
         if hareket_tipi == 'DEPO_DAGITICI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             alan_tip, alan_id = None, alici_id
-            cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
-            musteri = cursor.fetchone()
-            if musteri:
-                alan_tip = SAHIP_TIP_MUSTERI
-                alan_adi = f"{musteri[0]} - {musteri[1]}"
-                aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisine (Depodan Doğrudan) verildi"
-            else:
-                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-                dagitici = cursor.fetchone()
-                if not dagitici:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz alıcı ID (Müşteri veya Dağıtıcı bulunamadı)'}), 400
+            # DEPO->DAĞITİCI: ÖNCE kullanicilar tablosunda DAĞITİCI ara
+            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+            dagitici = cursor.fetchone()
+            if dagitici:
                 alan_tip = SAHIP_TIP_DAGITICI
                 alan_adi = f"{dagitici[0]} ({dagitici[1]})"
                 aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
+            else:
+                # Dağıtıcı bulunamadı → müşteri mi? (Depodan Doğrudan Müşteriye)
+                cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
+                musteri = cursor.fetchone()
+                if not musteri:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'hata': 'Geçersiz alıcı ID (Dağıtıcı veya Müşteri bulunamadı)'}), 400
+                alan_tip = SAHIP_TIP_MUSTERI
+                alan_adi = f"{musteri[0]} - {musteri[1]}"
+                aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisine (Depodan Doğrudan) verildi"
         elif hareket_tipi == 'DAGITICI_DEPO':
             alan_tip, alan_id, alan_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             gonderen_tip, gonderen_id = None, alici_id
-            cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
-            musteri = cursor.fetchone()
-            if musteri:
-                gonderen_tip = SAHIP_TIP_MUSTERI
-                gonderen_adi = f"{musteri[0]} - {musteri[1]}"
-                aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisinden (Depoya Doğrudan) iade alındı"
-            else:
-                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-                dagitici = cursor.fetchone()
-                if not dagitici:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
+            # DAĞITİCI->DEPO: ÖNCE kullanicilar tablosunda DAĞITİCI ara
+            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+            dagitici = cursor.fetchone()
+            if dagitici:
                 gonderen_tip = SAHIP_TIP_DAGITICI
                 gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
                 aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısından iade alındı"
+            else:
+                # Dağıtıcı bulunamadı → müşteri mi? (Müşteriden Depoya Doğrudan)
+                cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
+                musteri = cursor.fetchone()
+                if not musteri:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
+                gonderen_tip = SAHIP_TIP_MUSTERI
+                gonderen_adi = f"{musteri[0]} - {musteri[1]}"
+                aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisinden (Depoya Doğrudan) iade alındı"
     elif kullanici_tip == 'DAGITICI':
         if hareket_tipi == 'DAGITICI_MUSTERI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DAGITICI, kullanici_id, f"{kullanici_adi} ({kullanici_kadi})"
