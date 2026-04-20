@@ -898,6 +898,19 @@
                 </table>`}
             </div>
 
+            <!-- DAĞITıcı BAZLI TOPLANACAK PALETLER -->
+            <div class="card" style="margin-bottom:12px;" id="dagiticiFiltresiKarti">
+                <div class="card-title">🚚 Dağıtıcı Bazlı Toplanacak Paletler</div>
+                <p style="font-size:0.8rem; color:#666; margin-bottom:12px;">Bir dağıtıcı seçin — o dağıtıcının hangi müşterilerden ne kadar palet toplaması gerektiğini gün aralığı bazında görün.</p>
+                <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+                    <select id="dagFiltreSelect" style="flex:1; min-width:180px; padding:9px; border:1px solid #ddd; border-radius:8px; font-size:0.9rem;">
+                        <option value="">-- Dağıtıcı Seçin --</option>
+                    </select>
+                    <button class="btn" style="width:auto; padding:9px 18px;" onclick="dagFiltreYukle()">🔍 Getir</button>
+                </div>
+                <div id="dagFiltreIcerik"></div>
+            </div>
+
             <!-- EXPORT -->
             <div class="card">
                 <div class="card-title">📥 Rapor İndir</div>
@@ -925,7 +938,85 @@
             const ayBasi = new Date(bugun.getFullYear(), bugun.getMonth(), 1);
             document.getElementById('baslangic_tarihi').value = ayBasi.toISOString().split('T')[0];
             document.getElementById('bitis_tarihi').value = bugun.toISOString().split('T')[0];
+
+            // Dağıtıcı filtresini doldur
+            try {
+                let dagR = await apiCall('/api/dagitici_listesi');
+                if (dagR && dagR.data) {
+                    const sel = document.getElementById('dagFiltreSelect');
+                    if (sel) {
+                        dagR.data.forEach(d => {
+                            const opt = document.createElement('option');
+                            opt.value = d.id;
+                            opt.textContent = d.ad_soyad;
+                            sel.appendChild(opt);
+                        });
+                    }
+                }
+            } catch(e) {}
         }
+        async function dagFiltreYukle() {
+            const sel = document.getElementById('dagFiltreSelect');
+            const dagId = sel ? parseInt(sel.value) : null;
+            const dagAd = sel ? sel.options[sel.selectedIndex]?.text : '';
+            const div = document.getElementById('dagFiltreIcerik');
+            if (!dagId) { div.innerHTML = '<p style="color:#f44336; font-size:0.85rem;">⚠️ Lütfen bir dağıtıcı seçin.</p>'; return; }
+            div.innerHTML = '<div class="loading">Hesaplanıyor...</div>';
+            let r = await apiCall('/api/toplanacak_paletler');
+            if (!r || r.status !== 200 || !r.data) { div.innerHTML = '<p style="color:#f44336;">❌ Veri alınamadı.</p>'; return; }
+            // O dağıtıcıya ait satırları filtrele
+            const satirlar = r.data.filter(m => m.dagiticilar && m.dagiticilar.some(d => d.dagitici_id === dagId));
+            if (satirlar.length === 0) { div.innerHTML = `<div style="background:#e8f5e9; border-radius:8px; padding:14px; color:#2e7d32; font-size:0.9rem;">✅ <strong>${dagAd}</strong> için toplanması gereken palet bulunmuyor.</div>`; return; }
+            // Her müşteri için o dağıtıcının kırılımını al
+            let topG07=0, topG814=0, topG1521=0, topG22=0, topToplam=0;
+            const rows = satirlar.map(m => {
+                const dag = m.dagiticilar.find(d => d.dagitici_id === dagId);
+                if (!dag) return '';
+                topG07 += dag.g0_7; topG814 += dag.g8_14; topG1521 += dag.g15_21; topG22 += dag.g22; topToplam += dag.toplam;
+                const renkG07 = dag.g0_7 > 0 ? '#2e7d32' : '#bbb';
+                const renkG814 = dag.g8_14 > 0 ? '#f57f17' : '#bbb';
+                const renkG1521 = dag.g15_21 > 0 ? '#c62828' : '#bbb';
+                const renkG22 = dag.g22 > 0 ? '#b71c1c' : '#bbb';
+                return `<tr style="border-bottom:1px solid #eee;">
+                    <td style="text-align:left; white-space:normal; min-width:180px; font-size:0.85rem;"><strong>${m.musteri}</strong></td>
+                    <td style="font-weight:700; border-right:2px solid #ddd; font-size:1rem;">${dag.toplam}</td>
+                    <td style="color:${renkG07}; font-weight:${dag.g0_7>0?'600':'400'};">${dag.g0_7}</td>
+                    <td style="color:${renkG814}; font-weight:${dag.g8_14>0?'600':'400'};">${dag.g8_14}</td>
+                    <td style="color:${renkG1521}; font-weight:bold;">${dag.g15_21}</td>
+                    <td style="color:${renkG22}; font-weight:bold; background:${dag.g22>0?'#ffcdd2':''};">${dag.g22}</td>
+                </tr>`;
+            }).join('');
+            div.innerHTML = `
+                <div style="background:#e3f2fd; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:0.85rem; color:#1565c0;">
+                    🚚 <strong>${dagAd}</strong> — Toplam <strong>${topToplam}</strong> palet, <strong>${satirlar.length}</strong> müşteri
+                </div>
+                <div style="overflow-x:auto;">
+                <table class="stok-table" style="width:100%; text-align:center; white-space:nowrap;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;">Müşteri</th>
+                            <th style="border-right:2px solid #ddd;">Toplam</th>
+                            <th style="background:#e8f5e9; color:#2e7d32; min-width:72px;">0-7 Gün<br><small style="font-size:0.75rem;">${topG07} adet</small></th>
+                            <th style="background:#fff8e1; color:#f57f17; min-width:72px;">8-14 Gün<br><small style="font-size:0.75rem;">${topG814} adet</small></th>
+                            <th style="background:#ffebee; color:#c62828; min-width:72px;">15-21 Gün<br><small style="font-size:0.75rem;">${topG1521} adet</small></th>
+                            <th style="background:#b71c1c; color:#fff; min-width:72px;">22+ Gün 🔴<br><small style="font-size:0.75rem;">${topG22} adet</small></th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                    <tfoot>
+                        <tr style="background:#f5f5f5; font-weight:700; border-top:2px solid #ddd;">
+                            <td style="text-align:left; padding:8px;">📊 TOPLAM</td>
+                            <td style="border-right:2px solid #ddd;">${topToplam}</td>
+                            <td style="color:#2e7d32;">${topG07}</td>
+                            <td style="color:#f57f17;">${topG814}</td>
+                            <td style="color:#c62828;">${topG1521}</td>
+                            <td style="color:#b71c1c; background:#ffcdd2;">${topG22}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                </div>`;
+        }
+
         async function tarihRaporuGoster() { let b = document.getElementById('baslangic_tarihi').value, e = document.getElementById('bitis_tarihi').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } let d = document.getElementById('tarihRaporuSonuc'); d.innerHTML = '<div class="loading">Yükleniyor...</div>'; let r = await apiCall('/api/hareketler_filtreli', { method: 'POST', body: JSON.stringify({ baslangic_tarihi: b, bitis_tarihi: e }) }); if (r && r.data) { if (!r.data.length) { d.innerHTML = '<div class="card">📭 Hareket yok</div>'; return; } let html = `<div class="card"><div class="card-title">📋 ${b} - ${e}</div>`; for (let h of r.data) html += `<div class="hareket-item"><div class="tarih">${h.tarih}</div><div class="islem">${h.islem_tipi} - ${h.miktar} adet ${h.palet_adi}</div><div class="detay">👤 ${h.yapan}</div>${h.aciklama ? `<div class="detay">📝 ${h.aciklama}</div>` : ''}${h.makbuz_no ? `<div class="detay">🧾 Makbuz: <span class="makbuz-link" onclick="showMakbuz('${h.makbuz_no}')">${h.makbuz_no}</span></div>` : ''}</div>`; html += '</div>'; d.innerHTML = html; } }
         async function tarihRaporuExport() { let b = document.getElementById('baslangic_tarihi').value, e = document.getElementById('bitis_tarihi').value; if (!b || !e) { showToast('Tarih aralığı seçin', 'error'); return; } let r = await fetch(`${API_URL}/api/rapor/export`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ rapor_tipi: 'hareketler', baslangic_tarihi: b, bitis_tarihi: e }) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `hareket_raporu_${b}_${e}.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('Excel raporu indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
         async function pdfRaporIndir(tip = null) { let rapor_tipi = tip, b = null, e = null; if (!tip) { rapor_tipi = document.getElementById('pdf_rapor_tipi').value; b = document.getElementById('baslangic_tarihi').value; e = document.getElementById('bitis_tarihi').value; } let body = { rapor_tipi: rapor_tipi }; if (b && e) { body.baslangic_tarihi = b; body.bitis_tarihi = e; } let r = await fetch(`${API_URL}/api/rapor/pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${rapor_tipi}_raporu.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('PDF rapor indiriliyor'); } else showToast('Rapor oluşturulamadı', 'error'); }
@@ -983,6 +1074,7 @@
         // Süresi Dolan Paletler - global veri ve aktif filtre
         let _toplanacakData = [];
         let _toplanacakFiltre = null; // null=tümü, 'g0_7','g8_14','g15_21','g22'
+        let _toplanacakAcikMusteri = null; // hangi müşteri satırı açık
 
         async function showToplanacakPaletler(div) {
             div.innerHTML = `<div class="loading">Süresi Dolan Paletler Hesaplanıyor...</div>`;
@@ -1010,6 +1102,12 @@
 
         function _toplanacakFiltreDegistir(alan) {
             _toplanacakFiltre = (_toplanacakFiltre === alan) ? null : alan;
+            _toplanacakAcikMusteri = null;
+            _renderToplanacakTable();
+        }
+
+        function _toplanacakMusteriToggle(idx) {
+            _toplanacakAcikMusteri = (_toplanacakAcikMusteri === idx) ? null : idx;
             _renderToplanacakTable();
         }
 
@@ -1057,16 +1155,37 @@
 
             const satirHTML = satirlar.length === 0
                 ? `<tr><td colspan="6" style="text-align:center; padding:24px; color:#999;">Bu aralıkta palet olan müşteri bulunmuyor.</td></tr>`
-                : satirlar.map(m => {
+                : satirlar.map((m, idx) => {
                     const rowBg = f ? (m[f] > 0 ? '' : 'opacity:0.3;') : '';
-                    return `<tr style="border-bottom:1px solid #eee; ${rowBg}">
-                        <td style="text-align:left; white-space:normal; min-width:200px;"><strong>${m.musteri}</strong></td>
+                    const isAcik = _toplanacakAcikMusteri === idx;
+                    // Dağıtıcı alt satırı HTML
+                    let dagHTML = '';
+                    if (isAcik && m.dagiticilar && m.dagiticilar.length > 0) {
+                        const dagRows = m.dagiticilar.map(d =>
+                            `<tr style="background:#f0f7ff; font-size:0.8rem;">
+                                <td style="padding:6px 12px 6px 28px; color:#1565c0;">🚚 ${d.dagitici_ad}</td>
+                                <td style="font-weight:600; border-right:2px solid #ddd; color:#1565c0;">${d.toplam}</td>
+                                <td style="color:#2e7d32;">${d.g0_7 > 0 ? d.g0_7 : '<span style="color:#bbb">0</span>'}</td>
+                                <td style="color:#f57f17;">${d.g8_14 > 0 ? d.g8_14 : '<span style="color:#bbb">0</span>'}</td>
+                                <td style="color:#c62828;">${d.g15_21 > 0 ? `<b>${d.g15_21}</b>` : '<span style="color:#bbb">0</span>'}</td>
+                                <td style="color:#b71c1c; background:#fff3f3;">${d.g22 > 0 ? `<b>${d.g22}</b>` : '<span style="color:#bbb">0</span>'}</td>
+                            </tr>`
+                        ).join('');
+                        dagHTML = dagRows;
+                    } else if (isAcik) {
+                        dagHTML = `<tr style="background:#f0f7ff;"><td colspan="6" style="padding:8px 28px; color:#999; font-size:0.8rem;">Bu müşteri için dağıtıcı bilgisi bulunamadı.</td></tr>`;
+                    }
+                    return `<tr style="border-bottom:1px solid #eee; ${rowBg} cursor:pointer; ${isAcik ? 'background:#e8f0fe;' : ''}" onclick="_toplanacakMusteriToggle(${idx})">
+                        <td style="text-align:left; white-space:normal; min-width:200px;">
+                            <span style="color:#1976d2; font-size:0.75rem; margin-right:4px;">${isAcik ? '▼' : '▶'}</span>
+                            <strong>${m.musteri}</strong>
+                        </td>
                         <td style="font-weight:bold; font-size:1.1rem; border-right:2px solid #ddd;">${m.toplam}</td>
                         <td style="color:#2e7d32; font-weight:${m.g0_7>0?'600':'400'};">${m.g0_7}</td>
                         <td style="color:#f57f17; font-weight:${m.g8_14>0?'600':'400'};">${m.g8_14}</td>
                         <td style="color:#c62828; font-weight:bold;">${m.g15_21}</td>
                         <td style="color:#b71c1c; font-weight:bold; background:#ffcdd2;">${m.g22}</td>
-                    </tr>`;
+                    </tr>${dagHTML}`;
                 }).join('');
 
             document.getElementById('toplanacakTableCard').innerHTML = `
