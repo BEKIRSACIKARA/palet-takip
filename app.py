@@ -20,6 +20,12 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import zipfile
 import csv
+import smtplib
+import json
+import threading
+import time
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'palet-takip-gizli-anahtar-2026'
@@ -503,45 +509,41 @@ def transfer_yap(current_user):
         if hareket_tipi == 'DEPO_DAGITICI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             alan_tip, alan_id = None, alici_id
-            # DEPO->DAĞITİCI: ÖNCE kullanicilar tablosunda DAĞITİCI ara
-            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-            dagitici = cursor.fetchone()
-            if dagitici:
-                alan_tip = SAHIP_TIP_DAGITICI
-                alan_adi = f"{dagitici[0]} ({dagitici[1]})"
-                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
-            else:
-                # Dağıtıcı bulunamadı → müşteri mi? (Depodan Doğrudan Müşteriye)
-                cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
-                musteri = cursor.fetchone()
-                if not musteri:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz alıcı ID (Dağıtıcı veya Müşteri bulunamadı)'}), 400
+            cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
+            musteri = cursor.fetchone()
+            if musteri:
                 alan_tip = SAHIP_TIP_MUSTERI
                 alan_adi = f"{musteri[0]} - {musteri[1]}"
                 aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisine (Depodan Doğrudan) verildi"
+            else:
+                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+                dagitici = cursor.fetchone()
+                if not dagitici:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'hata': 'Geçersiz alıcı ID (Müşteri veya Dağıtıcı bulunamadı)'}), 400
+                alan_tip = SAHIP_TIP_DAGITICI
+                alan_adi = f"{dagitici[0]} ({dagitici[1]})"
+                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
         elif hareket_tipi == 'DAGITICI_DEPO':
             alan_tip, alan_id, alan_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             gonderen_tip, gonderen_id = None, alici_id
-            # DAĞITİCI->DEPO: ÖNCE kullanicilar tablosunda DAĞITİCI ara
-            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-            dagitici = cursor.fetchone()
-            if dagitici:
-                gonderen_tip = SAHIP_TIP_DAGITICI
-                gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
-                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısından iade alındı"
-            else:
-                # Dağıtıcı bulunamadı → müşteri mi? (Müşteriden Depoya Doğrudan)
-                cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
-                musteri = cursor.fetchone()
-                if not musteri:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
+            cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
+            musteri = cursor.fetchone()
+            if musteri:
                 gonderen_tip = SAHIP_TIP_MUSTERI
                 gonderen_adi = f"{musteri[0]} - {musteri[1]}"
                 aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisinden (Depoya Doğrudan) iade alındı"
+            else:
+                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+                dagitici = cursor.fetchone()
+                if not dagitici:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
+                gonderen_tip = SAHIP_TIP_DAGITICI
+                gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
+                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısından iade alındı"
     elif kullanici_tip == 'DAGITICI':
         if hareket_tipi == 'DAGITICI_MUSTERI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DAGITICI, kullanici_id, f"{kullanici_adi} ({kullanici_kadi})"
@@ -1441,6 +1443,446 @@ def toplanacak_paletler(current_user):
 
 if __name__ == '__main__':
     veritabani_olustur()
+    zamanlayici_baslat()
     from waitress import serve
     port = int(os.environ.get('PORT', 5000))
     serve(app, host='0.0.0.0', port=port, threads=4)
+
+# ============================================================
+# BİLDİRİM SİSTEMİ - AYARLAR API
+# ============================================================
+
+def ayar_getir(key, varsayilan=''):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT value FROM ayarlar WHERE key = %s", (key,))
+        row = cursor.fetchone()
+        return row[0] if row else varsayilan
+    except:
+        return varsayilan
+    finally:
+        cursor.close()
+        conn.close()
+
+def ayar_kaydet(key, value):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO ayarlar (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (key, value)
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/bildirim_ayarlari', methods=['GET'])
+@token_required
+def bildirim_ayarlari_getir(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    ayarlar = {
+        'email_aktif':      ayar_getir('bildirim_email_aktif', '0'),
+        'email_gonderen':   ayar_getir('bildirim_email_gonderen', ''),
+        'email_sifre':      ayar_getir('bildirim_email_sifre', ''),
+        'email_smtp':       ayar_getir('bildirim_email_smtp', 'smtp.gmail.com'),
+        'email_port':       ayar_getir('bildirim_email_port', '587'),
+        'email_alicilar':   ayar_getir('bildirim_email_alicilar', ''),
+        'whatsapp_aktif':   ayar_getir('bildirim_whatsapp_aktif', '0'),
+        'twilio_sid':       ayar_getir('bildirim_twilio_sid', ''),
+        'twilio_token':     ayar_getir('bildirim_twilio_token', ''),
+        'twilio_from':      ayar_getir('bildirim_twilio_from', ''),
+        'whatsapp_alicilar':ayar_getir('bildirim_whatsapp_alicilar', ''),
+        'bildirim_saati':   ayar_getir('bildirim_saati', '08:00'),
+        'min_gun':          ayar_getir('bildirim_min_gun', '21'),
+    }
+    return jsonify(ayarlar)
+
+
+@app.route('/api/bildirim_ayarlari', methods=['POST'])
+@token_required
+def bildirim_ayarlari_kaydet(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    data = request.get_json() or {}
+    mapping = {
+        'email_aktif':       'bildirim_email_aktif',
+        'email_gonderen':    'bildirim_email_gonderen',
+        'email_sifre':       'bildirim_email_sifre',
+        'email_smtp':        'bildirim_email_smtp',
+        'email_port':        'bildirim_email_port',
+        'email_alicilar':    'bildirim_email_alicilar',
+        'whatsapp_aktif':    'bildirim_whatsapp_aktif',
+        'twilio_sid':        'bildirim_twilio_sid',
+        'twilio_token':      'bildirim_twilio_token',
+        'twilio_from':       'bildirim_twilio_from',
+        'whatsapp_alicilar': 'bildirim_whatsapp_alicilar',
+        'bildirim_saati':    'bildirim_saati',
+        'min_gun':           'bildirim_min_gun',
+    }
+    for alan, key in mapping.items():
+        if alan in data:
+            ayar_kaydet(key, str(data[alan]))
+    return jsonify({'success': True, 'mesaj': 'Ayarlar kaydedildi'})
+
+
+# ============================================================
+# RAPOR VERİSİ HAZIRLA (22+ gün, dağıtıcı + palet tipi detaylı)
+# ============================================================
+
+def bildirim_raporu_hazirla(min_gun=21):
+    """22+ gün (veya min_gun üzeri) bekleyen paletleri dağıtıcı bazlı, palet tipi detaylı döndür."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    bugun = get_now()
+    try:
+        cursor.execute('''
+            SELECT m.id, m.musteri_kodu, m.musteri_adi,
+                   pt.stok_kodu, pt.palet_adi, s.miktar
+            FROM stoklar s
+            JOIN musteriler m ON s.stok_sahibi_id = m.id
+            JOIN palet_tipleri pt ON s.palet_tipi_id = pt.id
+            WHERE s.stok_sahibi_tip = 'MUSTERI' AND s.miktar > 0
+            ORDER BY m.id, pt.id
+        ''')
+        musteri_stoklar = cursor.fetchall()
+
+        # {musteri_id: {palet_tipi_id: miktar}}
+        musteri_palet_map = {}
+        for row in musteri_stoklar:
+            m_id, m_kodu, m_adi, pt_kod, pt_ad, miktar = row
+            if m_id not in musteri_palet_map:
+                musteri_palet_map[m_id] = {
+                    'musteri_kodu': m_kodu,
+                    'musteri_adi': m_adi,
+                    'palet_stoklar': {}
+                }
+            musteri_palet_map[m_id]['palet_stoklar'][pt_kod] = {
+                'ad': pt_ad, 'miktar': int(miktar)
+            }
+
+        # Her müşteri için hareketleri getir, gün hesapla, dağıtıcı kır
+        dagitici_rapor = {}  # {dagitici_id: {ad, musteriler: [...]}}
+
+        for m_id, m_info in musteri_palet_map.items():
+            toplam_stok = sum(v['miktar'] for v in m_info['palet_stoklar'].values())
+            if toplam_stok <= 0:
+                continue
+
+            cursor.execute('''
+                SELECT tarih, miktar, yapan_kullanici_id, palet_tipi_id
+                FROM hareketler
+                WHERE hareket_tipi = 'DAGITICI_MUSTERI' AND alan_id = %s
+                ORDER BY tarih DESC
+            ''', (m_id,))
+            hareketler = cursor.fetchall()
+
+            kalan_stok = toplam_stok
+            # {dagitici_id: {palet_tipi_id: {gun_grubu: miktar}}}
+            dag_palet_gun = {}
+
+            for h in hareketler:
+                if kalan_stok <= 0:
+                    break
+                h_tarih_raw, h_miktar, h_dag_id, h_palet_id = h[0], int(h[1]), h[2], h[3]
+                if isinstance(h_tarih_raw, datetime):
+                    h_tarih = h_tarih_raw
+                else:
+                    try:
+                        h_tarih = datetime.strptime(str(h_tarih_raw).split('.')[0], '%Y-%m-%d %H:%M:%S')
+                    except:
+                        h_tarih = bugun
+                fark_gun = (bugun - h_tarih).days
+                islem = min(kalan_stok, h_miktar)
+                kalan_stok -= islem
+
+                if fark_gun <= min_gun:
+                    continue  # Sadece min_gun üzerini al
+
+                if h_dag_id not in dag_palet_gun:
+                    dag_palet_gun[h_dag_id] = {}
+                key = str(h_palet_id)
+                if key not in dag_palet_gun[h_dag_id]:
+                    dag_palet_gun[h_dag_id][key] = 0
+                dag_palet_gun[h_dag_id][key] += islem
+
+            # Dağıtıcıların adlarını al ve raporu oluştur
+            for dag_id, palet_data in dag_palet_gun.items():
+                if not palet_data:
+                    continue
+                if dag_id not in dagitici_rapor:
+                    cursor.execute("SELECT ad_soyad FROM kullanicilar WHERE id = %s", (dag_id,))
+                    dag_row = cursor.fetchone()
+                    dagitici_rapor[dag_id] = {
+                        'dagitici_ad': dag_row[0] if dag_row else f'ID:{dag_id}',
+                        'musteriler': []
+                    }
+
+                # Palet tipi adlarını getir
+                palet_detay = []
+                toplam_musteri = 0
+                for pt_id_str, adet in palet_data.items():
+                    if adet <= 0:
+                        continue
+                    cursor.execute("SELECT stok_kodu, palet_adi FROM palet_tipleri WHERE id = %s", (int(pt_id_str),))
+                    pt_row = cursor.fetchone()
+                    pt_ad = f"{pt_row[0]} - {pt_row[1]}" if pt_row else f"Tip:{pt_id_str}"
+                    palet_detay.append({'palet': pt_ad, 'adet': adet})
+                    toplam_musteri += adet
+
+                if toplam_musteri > 0:
+                    dagitici_rapor[dag_id]['musteriler'].append({
+                        'musteri_kodu': m_info['musteri_kodu'],
+                        'musteri_adi': m_info['musteri_adi'],
+                        'toplam': toplam_musteri,
+                        'paletler': palet_detay
+                    })
+
+        # Sadece müşterisi olan dağıtıcıları döndür
+        return {dag_id: v for dag_id, v in dagitici_rapor.items() if v['musteriler']}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def rapor_html_olustur(rapor, min_gun=21):
+    tarih_str = get_now().strftime('%d.%m.%Y %H:%M')
+    toplam_musteri = sum(len(v['musteriler']) for v in rapor.values())
+    toplam_palet = sum(
+        sum(m['toplam'] for m in v['musteriler']) for v in rapor.values()
+    )
+
+    dag_html = ''
+    for dag_data in sorted(rapor.values(), key=lambda x: x['dagitici_ad']):
+        dag_toplam = sum(m['toplam'] for m in dag_data['musteriler'])
+        musteri_rows = ''
+        for m in sorted(dag_data['musteriler'], key=lambda x: -x['toplam']):
+            palet_str = ', '.join(f"<b>{p['adet']} adet</b> {p['palet']}" for p in m['paletler'])
+            musteri_rows += f'''
+            <tr>
+              <td style="padding:8px 12px; border-bottom:1px solid #eee;">{m["musteri_kodu"]} - {m["musteri_adi"]}</td>
+              <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; font-weight:700; color:#b71c1c;">{m["toplam"]}</td>
+              <td style="padding:8px 12px; border-bottom:1px solid #eee; font-size:0.9em; color:#555;">{palet_str}</td>
+            </tr>'''
+
+        dag_html += f'''
+        <div style="margin-bottom:24px; border:1px solid #ddd; border-radius:8px; overflow:hidden;">
+          <div style="background:#1565c0; color:white; padding:10px 16px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:1rem; font-weight:700;">🚚 {dag_data["dagitici_ad"]}</span>
+            <span style="background:rgba(255,255,255,0.2); padding:3px 10px; border-radius:12px; font-size:0.85rem;">Toplam: {dag_toplam} palet</span>
+          </div>
+          <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <thead>
+              <tr style="background:#e3f2fd;">
+                <th style="padding:8px 12px; text-align:left; color:#1565c0;">Müşteri</th>
+                <th style="padding:8px 12px; text-align:center; color:#1565c0; width:80px;">Adet</th>
+                <th style="padding:8px 12px; text-align:left; color:#1565c0;">Palet Tipi</th>
+              </tr>
+            </thead>
+            <tbody>{musteri_rows}</tbody>
+          </table>
+        </div>'''
+
+    return f'''<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8">
+<title>Palet Toplama Raporu - {tarih_str}</title>
+</head>
+<body style="font-family:Arial,sans-serif; background:#f5f5f5; margin:0; padding:20px;">
+<div style="max-width:700px; margin:0 auto; background:white; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.1);">
+  <div style="background:#b71c1c; color:white; padding:20px 24px;">
+    <h2 style="margin:0 0 6px;">🚨 Palet Toplama Raporu</h2>
+    <p style="margin:0; opacity:0.9; font-size:0.9rem;">{tarih_str} tarihli günlük rapor — {min_gun}+ gün bekleyen paletler</p>
+  </div>
+  <div style="padding:16px 24px; background:#fff3e0; border-bottom:1px solid #ffe0b2; display:flex; gap:24px;">
+    <div><span style="font-size:0.75rem; color:#e65100;">TOPLAM MÜŞTERİ</span><br><strong style="font-size:1.4rem; color:#b71c1c;">{toplam_musteri}</strong></div>
+    <div><span style="font-size:0.75rem; color:#e65100;">TOPLANACAK PALET</span><br><strong style="font-size:1.4rem; color:#b71c1c;">{toplam_palet}</strong></div>
+    <div><span style="font-size:0.75rem; color:#e65100;">DAĞITICI SAYISI</span><br><strong style="font-size:1.4rem; color:#b71c1c;">{len(rapor)}</strong></div>
+  </div>
+  <div style="padding:20px 24px;">
+    {dag_html if dag_html else '<p style="color:#4caf50; text-align:center; padding:20px;">✅ Toplanması gereken palet bulunmuyor.</p>'}
+  </div>
+  <div style="padding:12px 24px; background:#f5f5f5; text-align:center; font-size:0.75rem; color:#999;">
+    Bu rapor Palet Takip Sistemi tarafından otomatik oluşturulmuştur.
+  </div>
+</div>
+</body></html>'''
+
+
+def rapor_text_olustur(rapor, min_gun=21):
+    tarih_str = get_now().strftime('%d.%m.%Y %H:%M')
+    lines = [f"🚨 PALET TOPLAMA RAPORU - {tarih_str}",
+             f"({min_gun}+ gün bekleyen paletler)", "=" * 45]
+    for dag_data in sorted(rapor.values(), key=lambda x: x['dagitici_ad']):
+        dag_toplam = sum(m['toplam'] for m in dag_data['musteriler'])
+        lines.append(f"\n🚚 {dag_data['dagitici_ad']} — {dag_toplam} palet")
+        lines.append("-" * 35)
+        for m in sorted(dag_data['musteriler'], key=lambda x: -x['toplam']):
+            lines.append(f"  📍 {m['musteri_kodu']} - {m['musteri_adi']}")
+            for p in m['paletler']:
+                lines.append(f"     • {p['adet']} adet {p['palet']}")
+    lines.append("\n" + "=" * 45)
+    lines.append("Palet Takip Sistemi - Otomatik Rapor")
+    return "\n".join(lines)
+
+
+# ============================================================
+# E-POSTA GÖNDER
+# ============================================================
+
+def email_gonder(rapor, min_gun=21):
+    aktif = ayar_getir('bildirim_email_aktif', '0')
+    if aktif != '1':
+        return False, 'E-posta bildirimi aktif değil'
+    gonderen    = ayar_getir('bildirim_email_gonderen', '')
+    sifre       = ayar_getir('bildirim_email_sifre', '')
+    smtp_host   = ayar_getir('bildirim_email_smtp', 'smtp.gmail.com')
+    smtp_port   = int(ayar_getir('bildirim_email_port', '587'))
+    alicilar_str= ayar_getir('bildirim_email_alicilar', '')
+    if not gonderen or not sifre or not alicilar_str:
+        return False, 'E-posta ayarları eksik'
+    alicilar = [a.strip() for a in alicilar_str.split(',') if a.strip()]
+    tarih_str = get_now().strftime('%d.%m.%Y')
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"🚨 Palet Toplama Raporu - {tarih_str}"
+        msg['From'] = gonderen
+        msg['To'] = ', '.join(alicilar)
+        html_icerik = rapor_html_olustur(rapor, min_gun)
+        text_icerik = rapor_text_olustur(rapor, min_gun)
+        msg.attach(MIMEText(text_icerik, 'plain', 'utf-8'))
+        msg.attach(MIMEText(html_icerik, 'html', 'utf-8'))
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(gonderen, sifre)
+            server.sendmail(gonderen, alicilar, msg.as_string())
+        return True, f"{len(alicilar)} alıcıya e-posta gönderildi"
+    except Exception as e:
+        return False, f"E-posta hatası: {str(e)}"
+
+
+# ============================================================
+# WHATSAPP GÖNDER (Twilio)
+# ============================================================
+
+def whatsapp_gonder(rapor, min_gun=21):
+    aktif = ayar_getir('bildirim_whatsapp_aktif', '0')
+    if aktif != '1':
+        return False, 'WhatsApp bildirimi aktif değil'
+    try:
+        from twilio.rest import Client
+    except ImportError:
+        return False, 'Twilio kütüphanesi yüklü değil (pip install twilio)'
+    sid        = ayar_getir('bildirim_twilio_sid', '')
+    token      = ayar_getir('bildirim_twilio_token', '')
+    from_num   = ayar_getir('bildirim_twilio_from', '')
+    alicilar_str = ayar_getir('bildirim_whatsapp_alicilar', '')
+    if not sid or not token or not from_num or not alicilar_str:
+        return False, 'WhatsApp (Twilio) ayarları eksik'
+    alicilar = [a.strip() for a in alicilar_str.split(',') if a.strip()]
+    mesaj = rapor_text_olustur(rapor, min_gun)
+    if len(mesaj) > 1500:
+        mesaj = mesaj[:1497] + '...'
+    client = Client(sid, token)
+    basarili, hatali = 0, 0
+    for alici in alicilar:
+        try:
+            client.messages.create(
+                from_=f"whatsapp:{from_num}",
+                to=f"whatsapp:{alici}",
+                body=mesaj
+            )
+            basarili += 1
+        except Exception:
+            hatali += 1
+    return True, f"WhatsApp: {basarili} gönderildi, {hatali} başarısız"
+
+
+# ============================================================
+# BİLDİRİM GÖNDER (her iki kanal)
+# ============================================================
+
+def bildirim_gonder_tum():
+    min_gun = int(ayar_getir('bildirim_min_gun', '21'))
+    rapor = bildirim_raporu_hazirla(min_gun)
+    sonuclar = []
+    email_ok, email_msg = email_gonder(rapor, min_gun)
+    sonuclar.append({'kanal': 'E-posta', 'basarili': email_ok, 'mesaj': email_msg})
+    wp_ok, wp_msg = whatsapp_gonder(rapor, min_gun)
+    sonuclar.append({'kanal': 'WhatsApp', 'basarili': wp_ok, 'mesaj': wp_msg})
+    return sonuclar, len(rapor)
+
+
+@app.route('/api/bildirim_gonder', methods=['POST'])
+@token_required
+def bildirim_gonder_endpoint(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    try:
+        sonuclar, dag_sayisi = bildirim_gonder_tum()
+        return jsonify({'success': True, 'dagitici_sayisi': dag_sayisi, 'sonuclar': sonuclar})
+    except Exception as e:
+        return jsonify({'hata': str(e)}), 500
+
+
+@app.route('/api/bildirim_onizleme', methods=['GET'])
+@token_required
+def bildirim_onizleme(current_user):
+    if current_user['tip'] != 'DEPOCU':
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    try:
+        min_gun = int(ayar_getir('bildirim_min_gun', '21'))
+        rapor = bildirim_raporu_hazirla(min_gun)
+        ozet = []
+        for dag_data in sorted(rapor.values(), key=lambda x: x['dagitici_ad']):
+            ozet.append({
+                'dagitici': dag_data['dagitici_ad'],
+                'musteri_sayisi': len(dag_data['musteriler']),
+                'toplam_palet': sum(m['toplam'] for m in dag_data['musteriler']),
+                'musteriler': dag_data['musteriler']
+            })
+        return jsonify({'ozet': ozet, 'dagitici_sayisi': len(ozet), 'min_gun': min_gun})
+    except Exception as e:
+        return jsonify({'hata': str(e)}), 500
+
+
+# ============================================================
+# OTOMATİK ZAMANLAYICI (Thread tabanlı)
+# ============================================================
+
+_zamanlayici_thread = None
+_zamanlayici_aktif = False
+
+def zamanlayici_dongu():
+    global _zamanlayici_aktif
+    son_gonderim_tarihi = None
+    while _zamanlayici_aktif:
+        try:
+            bildirim_saati = ayar_getir('bildirim_saati', '08:00')
+            simdi = get_now()
+            bugun_str = simdi.strftime('%Y-%m-%d')
+            saat_str = simdi.strftime('%H:%M')
+            if saat_str == bildirim_saati and son_gonderim_tarihi != bugun_str:
+                email_aktif = ayar_getir('bildirim_email_aktif', '0')
+                wp_aktif = ayar_getir('bildirim_whatsapp_aktif', '0')
+                if email_aktif == '1' or wp_aktif == '1':
+                    bildirim_gonder_tum()
+                    son_gonderim_tarihi = bugun_str
+        except Exception:
+            pass
+        time.sleep(55)  # Her 55 saniyede kontrol et
+
+def zamanlayici_baslat():
+    global _zamanlayici_thread, _zamanlayici_aktif
+    if _zamanlayici_thread and _zamanlayici_thread.is_alive():
+        return
+    _zamanlayici_aktif = True
+    _zamanlayici_thread = threading.Thread(target=zamanlayici_dongu, daemon=True)
+    _zamanlayici_thread.start()
