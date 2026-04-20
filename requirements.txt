@@ -6,3 +6,4 @@ psycopg2-binary==2.9.9
 waitress==3.0.0
 reportlab==4.2.0
 bcrypt==4.1.3
+twilio==8.13.0
