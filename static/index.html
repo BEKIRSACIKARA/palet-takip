@@ -110,9 +110,9 @@
             <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
             <div class="form-group"><label>Şifre <span id="sifreHint" style="font-size:0.72rem;color:#999;">(değiştirmek için girin)</span></label><input type="password" id="kullanici_sifre" placeholder="Yeni şifre"></div>
             <div class="form-group">
-                <label>Kısıtlanan Ekranlar <span style="font-size:0.7rem;color:#999;">(virgülle ayır, boş=tam yetki)</span></label>
-                <input type="text" id="kullanici_kisitlamalar" placeholder="örn: raporlar,sistemiSifirla">
-                <div id="kisitlamaHintDiv" style="font-size:0.68rem;color:#aaa;margin-top:5px;line-height:1.6;"></div>
+                <label>İzin Verilen Ekranlar <span style="font-size:0.7rem;color:#4caf50;">✔ tikli = görünür, tiklenmemiş = gizlenir</span></label>
+                <div id="kisitlamaCheckboxDiv" style="background:#f9f9f9;border:1px solid #eee;border-radius:8px;padding:10px;margin-top:6px;max-height:270px;overflow-y:auto;"></div>
+                <input type="hidden" id="kullanici_kisitlamalar">
             </div>
             <input type="hidden" id="kullanici_id_duzenle">
             <input type="hidden" id="kullanici_tip_duzenle">
@@ -627,10 +627,70 @@
                 ${buildTable(forkliftler)}
             </div>`;
         }
-        const KISITLAMA_HINT = {
-            DAGITICI: 'Kullanılabilir id\'ler: musteriyeVer, musteridenAl, kendiStok, musteriStoklar, hareketler, toplanacakPaletler, kendiVerimliligim, top10Musteri',
-            FORKLIFT: 'Kullanılabilir id\'ler: canliPano, toplanacakPaletler, depoDagiticiTransfer, dagiticiIade, depoMusteri, depoStok, dagiticiStoklar, musteriStoklar, excelYukle, excelExport, stokExcelYukle, depoStokDuzenle, raporlar, paletTipleri, yedekleme, sistemiSifirla, hareketler'
+        // Tüm ekranlar: kullanıcı tipine göre izin verilebilecek action id'leri
+        const TUM_EKRANLAR = {
+            DAGITICI: [
+                { id: 'toplanacakPaletler',  label: '🚨 Süresi Dolan Paletler' },
+                { id: 'kendiVerimliligim',   label: '📈 Benim Verimliliğim' },
+                { id: 'top10Musteri',        label: '🏆 En Çok Paleti Olan 10 Müşteri' },
+                { id: 'kendiStok',           label: '📦 Kendi Stoğum' },
+                { id: 'musteriStoklar',      label: '🏪 Müşteri Stoğu' },
+                { id: 'musteriyeVer',        label: '➡️ Müşteriye Ver' },
+                { id: 'musteridenAl',        label: '⬅️ Müşteriden Al' },
+                { id: 'hareketler',          label: '📋 Hareketlerim' },
+                { id: 'bildirimAyarlari',    label: '📧 Otomatik Bildirim Ayarları' },
+            ],
+            FORKLIFT: [
+                { id: 'canliPano',           label: '🚀 Canlı İzleme Panosu' },
+                { id: 'toplanacakPaletler',  label: '🚨 Süresi Dolan Paletler' },
+                { id: 'depoDagiticiTransfer',label: '➡️ Depo → Dağıtıcı' },
+                { id: 'dagiticiIade',        label: '⬅️ Dağıtıcıdan İade Al' },
+                { id: 'depoMusteri',         label: '🏪 Depo → Müşteri' },
+                { id: 'depoStok',            label: '📦 Depo Stoğu' },
+                { id: 'dagiticiStoklar',     label: '🚚 Dağıtıcı Stoğu' },
+                { id: 'musteriStoklar',      label: '🏪 Müşteri Stoğu' },
+                { id: 'excelYukle',          label: '📂 Müşteri Verilerini Yükle' },
+                { id: 'excelExport',         label: '📤 Verileri Dışarı Aktar' },
+                { id: 'stokExcelYukle',      label: '📦 Toplu Stok Yükle' },
+                { id: 'raporlar',            label: '📊 Raporlar' },
+                { id: 'bildirimAyarlari',    label: '📧 Otomatik Bildirim Ayarları' },
+                { id: 'depoStokDuzenle',     label: '✏️ Depo Stok Düzenleme' },
+                { id: 'paletTipleri',        label: '🏷️ Palet Tip Ekle Sil' },
+                { id: 'yedekleme',           label: '💾 Yedekleme' },
+                { id: 'sistemiSifirla',      label: '⚠️ Sistemi Sıfırla' },
+                { id: 'hareketler',          label: '📋 Hareketler' },
+            ]
         };
+
+        function kisitlamaCheckboxOlustur(tip, mevcutKisitlamalar) {
+            const kisitliSet = new Set((mevcutKisitlamalar || '').split(',').map(x => x.trim()).filter(Boolean));
+            const ekranlar = TUM_EKRANLAR[tip] || [];
+            if (!ekranlar.length) { document.getElementById('kisitlamaCheckboxDiv').innerHTML = '<span style="color:#999;font-size:0.8rem;">Ekran tanımı yok.</span>'; return; }
+            let html = `<div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button type="button" onclick="tumunuSec()" style="font-size:0.72rem;padding:3px 10px;border:1px solid #4caf50;border-radius:6px;background:#e8f5e9;color:#2e7d32;cursor:pointer;">✅ Tümüne İzin Ver</button>
+                <button type="button" onclick="tumunuKaldir()" style="font-size:0.72rem;padding:3px 10px;border:1px solid #f44336;border-radius:6px;background:#ffebee;color:#c62828;cursor:pointer;">🚫 Tümünü Kısıtla</button>
+            </div>`;
+            ekranlar.forEach(e => {
+                const aktif = !kisitliSet.has(e.id);
+                html += `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:0.85rem;">
+                    <input type="checkbox" data-ekran-id="${e.id}" ${aktif ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;">
+                    <span>${e.label}</span>
+                </label>`;
+            });
+            document.getElementById('kisitlamaCheckboxDiv').innerHTML = html;
+        }
+
+        function tumunuSec() { document.querySelectorAll('#kisitlamaCheckboxDiv input[type=checkbox]').forEach(cb => cb.checked = true); }
+        function tumunuKaldir() { document.querySelectorAll('#kisitlamaCheckboxDiv input[type=checkbox]').forEach(cb => cb.checked = false); }
+
+        function checkboxKisitlamalarAl() {
+            const kisitlilar = [];
+            document.querySelectorAll('#kisitlamaCheckboxDiv input[type=checkbox]').forEach(cb => {
+                if (!cb.checked) kisitlilar.push(cb.dataset.ekranId);
+            });
+            return kisitlilar.join(',');
+        }
+
         function showYeniKullaniciModal(tip) {
             document.getElementById('kullaniciModalTitle').innerText = tip === 'FORKLIFT' ? 'Yeni Forklift Operatörü Ekle' : 'Yeni Dağıtıcı Ekle';
             document.getElementById('kullanici_adi_duzenle').value = '';
@@ -640,7 +700,7 @@
             document.getElementById('kullanici_kisitlamalar').value = '';
             document.getElementById('kullanici_tip_duzenle').value = tip || 'DAGITICI';
             document.getElementById('sifreHint').style.display = 'none';
-            document.getElementById('kisitlamaHintDiv').innerHTML = KISITLAMA_HINT[tip] || '';
+            kisitlamaCheckboxOlustur(tip, '');
             document.getElementById('kullaniciModal').style.display = 'flex';
         }
         function duzenleKullanici(id, ad, soyad, kisitlamalar, tip) {
@@ -652,7 +712,7 @@
             document.getElementById('kullanici_kisitlamalar').value = kisitlamalar || '';
             document.getElementById('kullanici_tip_duzenle').value = tip || 'DAGITICI';
             document.getElementById('sifreHint').style.display = 'inline';
-            document.getElementById('kisitlamaHintDiv').innerHTML = KISITLAMA_HINT[tip] || '';
+            kisitlamaCheckboxOlustur(tip, kisitlamalar || '');
             document.getElementById('kullaniciModal').style.display = 'flex';
         }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
@@ -662,7 +722,7 @@
             const ad = document.getElementById('kullanici_adi_duzenle').value.trim();
             const soyad = document.getElementById('ad_soyad_duzenle').value.trim();
             const s = document.getElementById('kullanici_sifre').value;
-            const kisitlamalar = document.getElementById('kullanici_kisitlamalar').value.trim();
+            const kisitlamalar = checkboxKisitlamalarAl();
             const tip = document.getElementById('kullanici_tip_duzenle').value || 'DAGITICI';
             if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; }
             if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; }
