@@ -503,45 +503,41 @@ def transfer_yap(current_user):
         if hareket_tipi == 'DEPO_DAGITICI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             alan_tip, alan_id = None, alici_id
-            # DEPO->DAĞITİCI: önce dağıtıcıyı ara (kullanicilar tablosu)
-            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-            dagitici = cursor.fetchone()
-            if dagitici:
-                alan_tip = SAHIP_TIP_DAGITICI
-                alan_adi = f"{dagitici[0]} ({dagitici[1]})"
-                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
-            else:
-                # Dağıtıcı bulunamadı, müşteri mi kontrol et (Depodan Doğrudan Müşteriye)
-                cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
-                musteri = cursor.fetchone()
-                if not musteri:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz alıcı ID (Dağıtıcı veya Müşteri bulunamadı)'}), 400
+            cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
+            musteri = cursor.fetchone()
+            if musteri:
                 alan_tip = SAHIP_TIP_MUSTERI
                 alan_adi = f"{musteri[0]} - {musteri[1]}"
                 aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisine (Depodan Doğrudan) verildi"
+            else:
+                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+                dagitici = cursor.fetchone()
+                if not dagitici:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'hata': 'Geçersiz alıcı ID (Müşteri veya Dağıtıcı bulunamadı)'}), 400
+                alan_tip = SAHIP_TIP_DAGITICI
+                alan_adi = f"{dagitici[0]} ({dagitici[1]})"
+                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısına transfer edildi"
         elif hareket_tipi == 'DAGITICI_DEPO':
             alan_tip, alan_id, alan_adi = SAHIP_TIP_DEPO, 0, "DEPO"
             gonderen_tip, gonderen_id = None, alici_id
-            # DAĞITİCI->DEPO: önce dağıtıcıyı ara (kullanicilar tablosu)
-            cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
-            dagitici = cursor.fetchone()
-            if dagitici:
-                gonderen_tip = SAHIP_TIP_DAGITICI
-                gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
-                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısından iade alındı"
-            else:
-                # Dağıtıcı bulunamadı, müşteri mi kontrol et (Müşteriden Depoya Doğrudan)
-                cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
-                musteri = cursor.fetchone()
-                if not musteri:
-                    cursor.close()
-                    conn.close()
-                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
+            cursor.execute("SELECT musteri_kodu, musteri_adi FROM musteriler WHERE id = %s", (alici_id,))
+            musteri = cursor.fetchone()
+            if musteri:
                 gonderen_tip = SAHIP_TIP_MUSTERI
                 gonderen_adi = f"{musteri[0]} - {musteri[1]}"
                 aciklama = f"{palet[2]} - {miktar} adet {musteri[1]} müşterisinden (Depoya Doğrudan) iade alındı"
+            else:
+                cursor.execute("SELECT ad_soyad, kullanici_adi FROM kullanicilar WHERE id = %s AND tip = 'DAGITICI'", (alici_id,))
+                dagitici = cursor.fetchone()
+                if not dagitici:
+                    cursor.close()
+                    conn.close()
+                    return jsonify({'hata': 'Geçersiz gönderen ID'}), 400
+                gonderen_tip = SAHIP_TIP_DAGITICI
+                gonderen_adi = f"{dagitici[0]} ({dagitici[1]})"
+                aciklama = f"{palet[2]} - {miktar} adet {dagitici[0]} dağıtıcısından iade alındı"
     elif kullanici_tip == 'DAGITICI':
         if hareket_tipi == 'DAGITICI_MUSTERI':
             gonderen_tip, gonderen_id, gonderen_adi = SAHIP_TIP_DAGITICI, kullanici_id, f"{kullanici_adi} ({kullanici_kadi})"
@@ -1380,15 +1376,55 @@ def toplanacak_paletler(current_user):
                     yas_22_arti += islem_miktari
             if kalan_stok > 0:
                 yas_22_arti += kalan_stok
+            # Dağıtıcı bazlı kırılım hesapla
+            dagitici_kirilimleri = {}
+            kalan_stok2 = toplam_stok
+            for h in verme_hareketleri:
+                if kalan_stok2 <= 0:
+                    break
+                h_tarih_raw = h[0]
+                h_miktar = int(h[1])
+                h_dagitici_id = h[2]
+                if isinstance(h_tarih_raw, datetime):
+                    h_tarih2 = h_tarih_raw
+                else:
+                    try:
+                        h_tarih2 = datetime.strptime(str(h_tarih_raw).split('.')[0], '%Y-%m-%d %H:%M:%S')
+                    except:
+                        h_tarih2 = bugun
+                fark_gun2 = (bugun - h_tarih2).days
+                islem_miktari2 = min(kalan_stok2, h_miktar)
+                kalan_stok2 -= islem_miktari2
+                if h_dagitici_id not in dagitici_kirilimleri:
+                    dagitici_kirilimleri[h_dagitici_id] = {'g0_7': 0, 'g8_14': 0, 'g15_21': 0, 'g22': 0, 'toplam': 0}
+                dagitici_kirilimleri[h_dagitici_id]['toplam'] += islem_miktari2
+                if fark_gun2 <= 7:
+                    dagitici_kirilimleri[h_dagitici_id]['g0_7'] += islem_miktari2
+                elif fark_gun2 <= 14:
+                    dagitici_kirilimleri[h_dagitici_id]['g8_14'] += islem_miktari2
+                elif fark_gun2 <= 21:
+                    dagitici_kirilimleri[h_dagitici_id]['g15_21'] += islem_miktari2
+                else:
+                    dagitici_kirilimleri[h_dagitici_id]['g22'] += islem_miktari2
+            # Dağıtıcı adlarını getir
+            dagitici_listesi = []
+            for dag_id, dag_data in dagitici_kirilimleri.items():
+                cursor.execute("SELECT ad_soyad FROM kullanicilar WHERE id = %s", (dag_id,))
+                dag_row = cursor.fetchone()
+                dag_ad = dag_row[0] if dag_row else f"ID:{dag_id}"
+                dagitici_listesi.append({'dagitici_ad': dag_ad, 'dagitici_id': dag_id, **dag_data})
+
             if current_user['tip'] in ('DEPOCU', 'FORKLIFT') or (current_user['tip'] == 'DAGITICI' and ilgili_dagitici_mi):
                 if (yas_8_14 + yas_15_21 + yas_22_arti) > 0:
                     sonuclar.append({
                         'musteri': f"{m_kodu} - {m_adi}",
+                        'musteri_id': m_id,
                         'toplam': toplam_stok,
                         'g0_7': yas_0_7,
                         'g8_14': yas_8_14,
                         'g15_21': yas_15_21,
-                        'g22': yas_22_arti
+                        'g22': yas_22_arti,
+                        'dagiticilar': dagitici_listesi
                     })
         sonuclar.sort(key=lambda x: (x['g22'], x['g15_21'], x['g8_14']), reverse=True)
         return jsonify(sonuclar)
