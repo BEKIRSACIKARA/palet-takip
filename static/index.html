@@ -110,9 +110,9 @@
             <div class="form-group"><label>Ad Soyad</label><input type="text" id="ad_soyad_duzenle"></div>
             <div class="form-group"><label>Şifre <span id="sifreHint" style="font-size:0.72rem;color:#999;">(değiştirmek için girin)</span></label><input type="password" id="kullanici_sifre" placeholder="Yeni şifre"></div>
             <div class="form-group">
-                <label>İzin Verilen Ekranlar <span style="font-size:0.7rem;color:#4caf50;">✔ tiklenenler görünür, tiklenmeyen gizlenir</span></label>
-                <div id="kisitlamaCheckboxDiv" style="background:#f9f9f9;border:1px solid #eee;border-radius:8px;padding:10px;margin-top:6px;max-height:260px;overflow-y:auto;"></div>
-                <input type="hidden" id="kullanici_kisitlamalar">
+                <label>Kısıtlanan Ekranlar <span style="font-size:0.7rem;color:#999;">(virgülle ayır, boş=tam yetki)</span></label>
+                <input type="text" id="kullanici_kisitlamalar" placeholder="örn: raporlar,sistemiSifirla">
+                <div id="kisitlamaHintDiv" style="font-size:0.68rem;color:#aaa;margin-top:5px;line-height:1.6;"></div>
             </div>
             <input type="hidden" id="kullanici_id_duzenle">
             <input type="hidden" id="kullanici_tip_duzenle">
@@ -506,13 +506,13 @@
 
         function filtreleMusteriDepo() { let a = document.getElementById('musteriAramaDepo').value.toLowerCase(); document.querySelectorAll('#musteriListesiDepo .musteri-item').forEach(i => { let k = i.getAttribute('data-kod').toLowerCase(), ad = i.getAttribute('data-ad').toLowerCase(); i.style.display = (a === '' || k.includes(a) || ad.includes(a)) ? 'block' : 'none'; }); }
         
-        async function depoMusteriyePaletVer() { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) return; document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver (Depodan)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="depoMusteriTransfer('DEPO_DAGITICI')">Palet Ver</button></div>`; }
+        async function depoMusteriyePaletVer() { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) return; document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">➡️ ${window.seciliMusteriAd} - Palet Ver (Depodan)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="depoMusteriTransfer('DEPO_MUSTERI')">Palet Ver</button></div>`; }
         async function depoMusteridenPaletAl() { let p = await apiCall('/api/palet_tipleri'); if (!p?.data) return; document.getElementById('content').innerHTML = `<div class="card"><div class="card-title">⬅️ ${window.seciliMusteriAd} - Palet Al (Depoya İade)</div><div class="form-group"><label>Palet Tipi</label><select id="palet_tipi_id">${p.data.map(p => `<option value="${p.id}">${p.stok_kodu} - ${p.palet_adi}</option>`).join('')}</select></div><div class="form-group"><label>Miktar</label><input type="number" id="miktar"></div><button class="btn" onclick="depoMusteriTransfer('MUSTERI_DEPO')">Palet Al</button></div>`; }
         
         async function depoMusteriTransfer(tip) {
             let pid = document.getElementById('palet_tipi_id')?.value, m = document.getElementById('miktar')?.value;
             if (!pid || !m || m <= 0) { showToast('Tüm alanları doldurun', 'error'); return; }
-            let body = tip === 'DEPO_DAGITICI' ? { hareket_tipi: 'DEPO_DAGITICI', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId } : { hareket_tipi: 'DAGITICI_DEPO', palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId };
+            let body = { hareket_tipi: tip, palet_tipi_id: parseInt(pid), miktar: parseInt(m), alici_id: window.seciliMusteriId };
             showToast('İşlem yapılıyor...', 'info');
             let r = await apiCall('/api/transfer', { method: 'POST', body: JSON.stringify(body) });
             if (r && r.status === 200 && r.data.success) {
@@ -583,7 +583,7 @@
         async function showMakbuz(no) {
             let r = await apiCall(`/api/makbuz/${no}`);
             if (r && r.data) {
-                let m = r.data, tip = { 'DEPO_DAGITICI': 'Depo → Dağıtıcı', 'DAGITICI_MUSTERI': 'Dağıtıcı → Müşteri', 'MUSTERI_DAGITICI': 'Müşteri → Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı → Depo' }[m.islem_tipi] || m.islem_tipi;
+                let m = r.data, tip = { 'DEPO_DAGITICI': 'Depo → Dağıtıcı', 'DEPO_MUSTERI': 'Depo → Müşteri', 'MUSTERI_DEPO': 'Müşteri → Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı → Müşteri', 'MUSTERI_DAGITICI': 'Müşteri → Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı → Depo' }[m.islem_tipi] || m.islem_tipi;
                 document.getElementById('content').innerHTML = `<div style="background:white;border-radius:12px;padding:24px;max-width:800px;margin:0 auto;"><div style="text-align:center;border-bottom:2px solid #2196F3;padding-bottom:16px;"><h1 style="color:#1976D2;">ULUDAĞ İÇECEK</h1><h2 style="color:#2196F3;">KONYA BÖLGE DEPO</h2><h3>PALET İŞLEM MAKBUZU</h3></div><div style="display:flex;justify-content:space-between;margin:20px 0;padding:12px;background:#f5f5f5;"><div><strong>Makbuz No:</strong> ${m.makbuz_no}</div><div><strong>Tarih:</strong> ${m.tarih}</div></div><div style="display:flex;justify-content:space-between;margin-bottom:20px;"><div><strong>📤 TESLİM EDEN:</strong><br>${m.gonderen_adi}</div><div><strong>📥 TESLİM ALAN:</strong><br>${m.alan_adi}</div></div><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#2196F3;color:white;"><th>Stok Kodu</th><th>Palet Adı</th><th>Miktar</th></tr></thead><tbody>${m.detaylar.map(d => `<tr><td>${d.stok_kodu}</td><td>${d.palet_adi}</td><td style="text-align:center">${d.miktar}</td></tr>`).join('')}<tr style="background:#f5f5f5;font-weight:bold;"><td colspan="2">Toplam</td><td style="text-align:center">${m.toplam_miktar}</td></tr></tbody></table><div style="margin:20px 0;padding:12px;background:#f9f9f9;"><div><strong>İşlem Türü:</strong> ${tip}</div><div><strong>Açıklama:</strong> ${m.aciklama}</div><div><strong>İşlemi Yapan:</strong> ${m.yapan_adi}</div></div><div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid #ddd;"><div style="margin-bottom:40px;">_________________________</div><div>ULUDAĞ İÇECEK KONYA BÖLGE DEPO</div><div style="font-size:0.8rem;">Yetkili İmza</div></div><div style="display:flex;gap:10px;margin-top:20px;"><button class="btn" onclick="window.print()">🖨️ Yazdır</button><button class="btn btn-warning" onclick="makbuzPdfIndir('${no}')">📄 PDF İndir</button><button class="btn btn-secondary" onclick="goBack()">🔙 Geri Dön</button></div></div>`;
             } else { document.getElementById('content').innerHTML = '<div class="card">❌ Makbuz bulunamadı</div>'; }
         }
@@ -627,78 +627,10 @@
                 ${buildTable(forkliftler)}
             </div>`;
         }
-        // Tüm ekranlar: id, etiket, hangi tipler için geçerli
-        const TUM_EKRANLAR = {
-            DAGITICI: [
-                { id: 'toplanacakPaletler',  label: '🚨 Süresi Dolan Paletler' },
-                { id: 'kendiVerimliligim',   label: '📈 Benim Verimliliğim' },
-                { id: 'top10Musteri',        label: '🏆 En Çok Paleti Olan 10 Müşteri' },
-                { id: 'kendiStok',           label: '📦 Kendi Stoğum' },
-                { id: 'musteriStoklar',      label: '🏪 Müşteri Stoğu' },
-                { id: 'musteriyeVer',        label: '➡️ Müşteriye Ver' },
-                { id: 'musteridenAl',        label: '⬅️ Müşteriden Al' },
-                { id: 'hareketler',          label: '📋 Hareketlerim' },
-            ],
-            FORKLIFT: [
-                { id: 'canliPano',           label: '🚀 Canlı İzleme Panosu' },
-                { id: 'toplanacakPaletler',  label: '🚨 Süresi Dolan Paletler' },
-                { id: 'depoDagiticiTransfer',label: '➡️ Depo → Dağıtıcı' },
-                { id: 'dagiticiIade',        label: '⬅️ Dağıtıcıdan İade Al' },
-                { id: 'depoMusteri',         label: '🏪 Depo → Müşteri' },
-                { id: 'depoStok',            label: '📦 Depo Stoğu' },
-                { id: 'dagiticiStoklar',     label: '🚚 Dağıtıcı Stoğu' },
-                { id: 'musteriStoklar',      label: '🏪 Müşteri Stoğu' },
-                { id: 'excelYukle',          label: '📂 Müşteri Verilerini Yükle' },
-                { id: 'excelExport',         label: '📤 Verileri Dışarı Aktar' },
-                { id: 'stokExcelYukle',      label: '📦 Toplu Stok Yükle' },
-                { id: 'raporlar',            label: '📊 Raporlar' },
-                { id: 'depoStokDuzenle',     label: '✏️ Depo Stok Düzenleme' },
-                { id: 'paletTipleri',        label: '🏷️ Palet Tip Ekle Sil' },
-                { id: 'yedekleme',           label: '💾 Yedekleme' },
-                { id: 'sistemiSifirla',      label: '⚠️ Sistemi Sıfırla' },
-                { id: 'hareketler',          label: '📋 Hareketler' },
-            ]
+        const KISITLAMA_HINT = {
+            DAGITICI: 'Kullanılabilir id\'ler: musteriyeVer, musteridenAl, kendiStok, musteriStoklar, hareketler, toplanacakPaletler, kendiVerimliligim, top10Musteri',
+            FORKLIFT: 'Kullanılabilir id\'ler: canliPano, toplanacakPaletler, depoDagiticiTransfer, dagiticiIade, depoMusteri, depoStok, dagiticiStoklar, musteriStoklar, excelYukle, excelExport, stokExcelYukle, depoStokDuzenle, raporlar, paletTipleri, yedekleme, sistemiSifirla, hareketler'
         };
-
-        function kisitlamaCheckboxOlustur(tip, mevcutKisitlamalar) {
-            // mevcutKisitlamalar: virgülle ayrılmış KISITLANAN id'ler
-            const kisitliSet = new Set((mevcutKisitlamalar || '').split(',').map(x => x.trim()).filter(Boolean));
-            const ekranlar = TUM_EKRANLAR[tip] || [];
-            if (ekranlar.length === 0) {
-                document.getElementById('kisitlamaCheckboxDiv').innerHTML = '<span style="color:#999;font-size:0.8rem;">Bu kullanıcı tipi için ekran tanımı yok.</span>';
-                return;
-            }
-            // Tümünü seç / kaldır butonları
-            let html = `<div style="display:flex;gap:8px;margin-bottom:8px;">
-                <button type="button" onclick="tumunuSec()" style="font-size:0.72rem;padding:3px 10px;border:1px solid #4caf50;border-radius:6px;background:#e8f5e9;color:#2e7d32;cursor:pointer;">✅ Tümüne İzin Ver</button>
-                <button type="button" onclick="tumunuKaldir()" style="font-size:0.72rem;padding:3px 10px;border:1px solid #f44336;border-radius:6px;background:#ffebee;color:#c62828;cursor:pointer;">🚫 Tümünü Kısıtla</button>
-            </div>`;
-            ekranlar.forEach(e => {
-                const aktif = !kisitliSet.has(e.id); // kısıtlanmamışsa aktif (tikli)
-                html += `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:0.85rem;">
-                    <input type="checkbox" data-ekran-id="${e.id}" ${aktif ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;">
-                    <span>${e.label}</span>
-                </label>`;
-            });
-            document.getElementById('kisitlamaCheckboxDiv').innerHTML = html;
-        }
-
-        function tumunuSec() {
-            document.querySelectorAll('#kisitlamaCheckboxDiv input[type=checkbox]').forEach(cb => cb.checked = true);
-        }
-        function tumunuKaldir() {
-            document.querySelectorAll('#kisitlamaCheckboxDiv input[type=checkbox]').forEach(cb => cb.checked = false);
-        }
-
-        function checkboxKisitlamalarAl() {
-            // Tiklenmeyen = kısıtlı
-            const kisitlilar = [];
-            document.querySelectorAll('#kisitlamaCheckboxDiv input[type=checkbox]').forEach(cb => {
-                if (!cb.checked) kisitlilar.push(cb.dataset.ekranId);
-            });
-            return kisitlilar.join(',');
-        }
-
         function showYeniKullaniciModal(tip) {
             document.getElementById('kullaniciModalTitle').innerText = tip === 'FORKLIFT' ? 'Yeni Forklift Operatörü Ekle' : 'Yeni Dağıtıcı Ekle';
             document.getElementById('kullanici_adi_duzenle').value = '';
@@ -708,7 +640,7 @@
             document.getElementById('kullanici_kisitlamalar').value = '';
             document.getElementById('kullanici_tip_duzenle').value = tip || 'DAGITICI';
             document.getElementById('sifreHint').style.display = 'none';
-            kisitlamaCheckboxOlustur(tip, ''); // yeni kullanıcı = hepsi aktif
+            document.getElementById('kisitlamaHintDiv').innerHTML = KISITLAMA_HINT[tip] || '';
             document.getElementById('kullaniciModal').style.display = 'flex';
         }
         function duzenleKullanici(id, ad, soyad, kisitlamalar, tip) {
@@ -720,7 +652,7 @@
             document.getElementById('kullanici_kisitlamalar').value = kisitlamalar || '';
             document.getElementById('kullanici_tip_duzenle').value = tip || 'DAGITICI';
             document.getElementById('sifreHint').style.display = 'inline';
-            kisitlamaCheckboxOlustur(tip, kisitlamalar || '');
+            document.getElementById('kisitlamaHintDiv').innerHTML = KISITLAMA_HINT[tip] || '';
             document.getElementById('kullaniciModal').style.display = 'flex';
         }
         function kapatKullaniciModal() { document.getElementById('kullaniciModal').style.display = 'none'; }
@@ -730,7 +662,7 @@
             const ad = document.getElementById('kullanici_adi_duzenle').value.trim();
             const soyad = document.getElementById('ad_soyad_duzenle').value.trim();
             const s = document.getElementById('kullanici_sifre').value;
-            const kisitlamalar = checkboxKisitlamalarAl();
+            const kisitlamalar = document.getElementById('kullanici_kisitlamalar').value.trim();
             const tip = document.getElementById('kullanici_tip_duzenle').value || 'DAGITICI';
             if (!ad || !soyad) { showToast('Kullanıcı adı ve ad soyad gerekli', 'error'); return; }
             if (!id && (!s || s.length < 4)) { showToast('Yeni kullanıcı için şifre en az 4 karakter', 'error'); return; }
