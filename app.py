@@ -115,8 +115,8 @@ def veritabani_olustur():
     conn.commit()
     for stok_kodu, palet_adi in PALET_TIPLERI:
         cursor.execute("INSERT INTO palet_tipleri (stok_kodu, palet_adi) SELECT %s, %s WHERE NOT EXISTS (SELECT 1 FROM palet_tipleri WHERE stok_kodu = %s)", (stok_kodu, palet_adi, stok_kodu))
-    cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) SELECT %s, %s, %s, %s WHERE NOT EXISTS (SELECT 1 FROM kullanicilar WHERE kullanici_adi = %s)", ('depocu', hash_sifre('12345'), 'DEPOCU', 'Ana Depocu', 'depocu'))
-    cursor.execute("UPDATE kullanicilar SET sifre = %s WHERE kullanici_adi = 'depocu'", (hash_sifre('12345'),))
+    cursor.execute("INSERT INTO kullanicilar (kullanici_adi, sifre, tip, ad_soyad) SELECT %s, %s, %s, %s WHERE NOT EXISTS (SELECT 1 FROM kullanicilar WHERE kullanici_adi = %s)", ('depocu', hash_sifre('Uludag42.'), 'DEPOCU', 'Ana Depocu', 'depocu'))
+    cursor.execute("UPDATE kullanicilar SET sifre = %s WHERE kullanici_adi = 'depocu'", (hash_sifre('Uludag42.'),))
 
     conn.commit()
     cursor.execute('SELECT id FROM palet_tipleri')
