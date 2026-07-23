@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#2196F3">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Palet Takip">
     <title>Palet Takip Sistemi</title>
     <style>
         :root {
@@ -86,6 +92,18 @@
         .toast.success { background: #4caf50; }
         .toast.error { background: #f44336; }
         .toast.info { background: var(--theme-main); }
+
+        /* Ana ekrana ekle önerisi */
+        .install-banner { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%); width: calc(100% - 32px); max-width: 420px; background: white; color: #333; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); padding: 14px; z-index: 2500; display: flex; align-items: center; gap: 12px; animation: fadeInUp 0.25s ease; }
+        .install-banner-ic { width: 36px; height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--theme-main); color: white; border-radius: 10px; font-weight: 900; font-size: 18px; }
+        .install-banner-metin { flex: 1; min-width: 0; }
+        .install-banner-baslik { font-weight: 700; font-size: 0.9rem; }
+        .install-banner-alt { font-size: 0.75rem; color: #888; margin-top: 2px; }
+        .install-banner-btnler { display: flex; gap: 8px; flex-shrink: 0; }
+        .install-banner-btnler button { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
+        .install-banner-hayir { background: #f0f0f0; color: #888; }
+        .install-banner-evet { background: var(--theme-main); color: white; }
+        @media (max-width: 380px) { .install-banner { flex-wrap: wrap; } .install-banner-btnler { width: 100%; justify-content: flex-end; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .loading { text-align: center; padding: 40px; color: #999; }
         
@@ -101,6 +119,19 @@
 </head>
 <body>
     <div id="app"></div>
+
+    <!-- Ana ekrana ekle önerisi -->
+    <div id="installBanner" class="install-banner" style="display:none;">
+        <div class="install-banner-ic">P</div>
+        <div class="install-banner-metin">
+            <div class="install-banner-baslik">Uygulamayı ana ekrana ekle</div>
+            <div class="install-banner-alt">Daha hızlı erişim için ana ekranınıza ekleyin</div>
+        </div>
+        <div class="install-banner-btnler">
+            <button class="install-banner-hayir" onclick="installHayir()">Hayır</button>
+            <button class="install-banner-evet" onclick="installEvet()">Evet</button>
+        </div>
+    </div>
 
     <!-- Kullanıcı Modal - statik, her zaman DOM'da -->
     <div id="kullaniciModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:2000;">
@@ -125,6 +156,41 @@
     <script>
         const API_URL = window.location.origin;
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
+
+        // ===================== ANA EKRANA EKLE (PWA) =====================
+        let ertelenenInstallOlayi = null;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            const kuruluMu = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (kuruluMu) return;
+            if (sessionStorage.getItem('palet_install_hayir') === '1') return;
+            e.preventDefault();
+            ertelenenInstallOlayi = e;
+            document.getElementById('installBanner').style.display = 'flex';
+        });
+
+        window.addEventListener('appinstalled', () => {
+            document.getElementById('installBanner').style.display = 'none';
+            ertelenenInstallOlayi = null;
+        });
+
+        function installEvet() {
+            document.getElementById('installBanner').style.display = 'none';
+            if (!ertelenenInstallOlayi) return;
+            ertelenenInstallOlayi.prompt();
+            ertelenenInstallOlayi.userChoice.finally(() => { ertelenenInstallOlayi = null; });
+        }
+
+        function installHayir() {
+            sessionStorage.setItem('palet_install_hayir', '1');
+            document.getElementById('installBanner').style.display = 'none';
+        }
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+            });
+        }
 
         // ===================== TEMA YÖNETİMİ =====================
         const TEMALAR = [

@@ -223,6 +223,16 @@ def index():
     return send_from_directory('static', 'index.html')
 
 
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
+
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
