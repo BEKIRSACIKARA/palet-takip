@@ -100,7 +100,13 @@ def veritabani_olustur():
         conn.commit()
     except Exception:
         conn.rollback()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS musteriler (id SERIAL PRIMARY KEY, musteri_kodu TEXT UNIQUE NOT NULL, musteri_adi TEXT NOT NULL, tabela_adi TEXT NOT NULL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS musteriler (id SERIAL PRIMARY KEY, musteri_kodu TEXT UNIQUE NOT NULL, musteri_adi TEXT NOT NULL, tabela_adi TEXT NOT NULL, aktif INTEGER DEFAULT 1)''')
+    try:
+        cursor.execute("ALTER TABLE musteriler ADD COLUMN aktif INTEGER DEFAULT 1")
+        cursor.execute("UPDATE musteriler SET aktif = 1 WHERE aktif IS NULL")
+        conn.commit()
+    except Exception:
+        conn.rollback()
     cursor.execute('''CREATE TABLE IF NOT EXISTS palet_tipleri (id SERIAL PRIMARY KEY, stok_kodu TEXT UNIQUE NOT NULL, palet_adi TEXT NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS stoklar (id SERIAL PRIMARY KEY, stok_sahibi_tip TEXT NOT NULL, stok_sahibi_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, miktar INTEGER DEFAULT 0, FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id), UNIQUE(stok_sahibi_tip, stok_sahibi_id, palet_tipi_id))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS hareketler (id SERIAL PRIMARY KEY, tarih TEXT NOT NULL, yapan_kullanici_id INTEGER NOT NULL, hareket_tipi TEXT NOT NULL, gonderen_tip TEXT NOT NULL, gonderen_id INTEGER NOT NULL, alan_tip TEXT NOT NULL, alan_id INTEGER NOT NULL, palet_tipi_id INTEGER NOT NULL, miktar INTEGER NOT NULL, aciklama TEXT, makbuz_no TEXT, FOREIGN KEY (yapan_kullanici_id) REFERENCES kullanicilar(id), FOREIGN KEY (palet_tipi_id) REFERENCES palet_tipleri(id))''')
@@ -399,7 +405,7 @@ def kullanici_sil(current_user):
 def get_tum_musteriler(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, musteri_kodu, musteri_adi, tabela_adi FROM musteriler ORDER BY musteri_adi")
+    cursor.execute("SELECT id, musteri_kodu, musteri_adi, tabela_adi FROM musteriler WHERE COALESCE(aktif,1) = 1 ORDER BY musteri_adi")
     sonuc = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -428,6 +434,72 @@ def musteri_ekle(current_user):
         conn.close()
         return jsonify({'success': True, 'id': musteri_id, 'mesaj': 'Müşteri eklendi'})
     except Exception as e:
+        cursor.close()
+        conn.close()
+        return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/musteri_duzenle', methods=['PUT'])
+@token_required
+def musteri_duzenle(current_user):
+    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    data = request.get_json()
+    mid, musteri_kodu, musteri_adi, tabela_adi = data.get('id'), data.get('musteri_kodu'), data.get('musteri_adi'), data.get('tabela_adi')
+    if not mid or not musteri_kodu or not musteri_adi or not tabela_adi:
+        return jsonify({'hata': 'Tüm alanlar gerekli'}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        db_execute(cursor, conn, "UPDATE musteriler SET musteri_kodu=%s, musteri_adi=%s, tabela_adi=%s WHERE id=%s AND COALESCE(aktif,1)=1", (musteri_kodu, musteri_adi, tabela_adi, mid))
+        if cursor.rowcount == 0:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({'hata': 'Müşteri bulunamadı veya güncellenemedi'}), 404
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'mesaj': 'Müşteri güncellendi'})
+    except Exception as e:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return jsonify({'hata': str(e)}), 400
+
+
+@app.route('/api/musteri_sil', methods=['DELETE'])
+@token_required
+def musteri_sil(current_user):
+    if current_user['tip'] not in ('DEPOCU', 'FORKLIFT'):
+        return jsonify({'hata': 'Yetkisiz erişim'}), 403
+    mid = request.args.get('id', type=int)
+    if not mid:
+        return jsonify({'hata': 'id gerekli'}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COALESCE(SUM(miktar),0) FROM stoklar WHERE stok_sahibi_tip = 'MUSTERI' AND stok_sahibi_id = %s", (mid,))
+        toplam_stok = cursor.fetchone()[0] or 0
+        if toplam_stok > 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'hata': f'Bu müşteride hâlâ {toplam_stok} adet palet var. Önce paletleri geri alın, sonra silin.'}), 400
+        # Gerçekten silmek yerine pasife al - geçmiş hareketler korunur
+        if _DB_TYPE == 'sqlite':
+            cursor.execute("UPDATE musteriler SET aktif=0, musteri_kodu=musteri_kodu||'_silindi_'||CAST(id AS TEXT) WHERE id=? AND COALESCE(aktif,1)=1", (mid,))
+        else:
+            cursor.execute("UPDATE musteriler SET aktif=0, musteri_kodu=musteri_kodu||'_silindi_'||id::text WHERE id=%s AND COALESCE(aktif,1)=1", (mid,))
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'hata': 'Müşteri bulunamadı'}), 404
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'mesaj': 'Müşteri silindi'})
+    except Exception as e:
+        conn.rollback()
         cursor.close()
         conn.close()
         return jsonify({'hata': str(e)}), 400

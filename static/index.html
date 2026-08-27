@@ -153,6 +153,20 @@
             </div>
         </div>
     </div>
+    <!-- Müşteri Modal - statik, her zaman DOM'da -->
+    <div id="musteriModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:2000;">
+        <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;">
+            <h3 id="musteriModalTitle" style="margin-bottom:16px;">Müşteri</h3>
+            <div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu_duzenle"></div>
+            <div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi_duzenle"></div>
+            <div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi_duzenle"></div>
+            <input type="hidden" id="musteri_id_duzenle">
+            <div style="display:flex;gap:10px;margin-top:12px;">
+                <button class="btn" onclick="kaydetMusteri()">Kaydet</button>
+                <button class="btn btn-secondary" onclick="kapatMusteriModal()">İptal</button>
+            </div>
+        </div>
+    </div>
     <script>
         const API_URL = window.location.origin;
         let token = null, currentUser = null, currentLevel = 0, currentGroup = null, currentAction = null;
@@ -275,7 +289,7 @@
                 ]},
                 { id: "kullanici_islemleri", title: "👥 KULLANICI İŞLEMLERİ", icon: "👥", desc: "Kullanıcı ve müşteri yönetimi", actions: [
                     { id: "kullaniciYonetim", icon: "👥", text: "Kullanıcılar", desc: "Dağıtıcıları yönet" },
-                    { id: "musteriEkle", icon: "👤", text: "Müşteri Ekle", desc: "Yeni müşteri ekle" }
+                    { id: "musteriEkle", icon: "👤", text: "Müşteriler", desc: "Ekle / düzenle / sil" }
                 ]},
                 { id: "veri_guncelleme", title: "📂 VERİ GÜNCELLEME", icon: "📂", desc: "Veri yükleme ve dışa aktarma", actions: [
                     { id: "excelYukle", icon: "📂", text: "Müşteri Verilerini Yükle", desc: "Excel'den müşteri yükle" },
@@ -458,7 +472,7 @@
             else if (aid === 'dagiticiIade') await showDagiticiIade(div);
             else if (aid === 'musteriyeVer') await showMusteriyeVer(div);
             else if (aid === 'musteridenAl') await showMusteridenAl(div);
-            else if (aid === 'musteriEkle') showMusteriEkle(div);
+            else if (aid === 'musteriEkle') await showMusteriEkle(div);
             else if (aid === 'paletTipleri') await showPaletTipleri(div);
             else if (aid === 'kullaniciYonetim') await showKullaniciYonetim(div);
             else if (aid === 'excelYukle') showExcelYukle(div);
@@ -659,8 +673,76 @@
             if (r.ok) { let blob = await r.blob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `makbuz_${no}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast('PDF indiriliyor'); } else { showToast('PDF oluşturulamadı', 'error'); }
         }
 
-        function showMusteriEkle(div) { div.innerHTML = `<div class="card"><div class="card-title">👤 Yeni Müşteri Ekle</div><div class="form-group"><label>Müşteri Kodu</label><input type="text" id="musteri_kodu"></div><div class="form-group"><label>Müşteri Adı</label><input type="text" id="musteri_adi"></div><div class="form-group"><label>Tabela Adı</label><input type="text" id="tabela_adi"></div><button class="btn" onclick="yeniMusteriEkle()">Kaydet</button></div>`; }
-        async function yeniMusteriEkle() { let k = document.getElementById('musteri_kodu').value, a = document.getElementById('musteri_adi').value, t = document.getElementById('tabela_adi').value; if (!k || !a || !t) { showToast('Tüm alanları doldurun', 'error'); return; } let r = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu: k, musteri_adi: a, tabela_adi: t }) }); if (r && r.status === 200 && r.data.success) { showToast(r.data.mesaj); goBack(); } else showToast(r?.data?.hata || 'Ekleme başarısız', 'error'); }
+        async function showMusteriEkle(div) {
+            let m = await apiCall('/api/tum_musteriler');
+            if (!m?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
+            const satirlar = m.data.length === 0 ? '<div style="color:#999;font-size:0.85rem;padding:8px 0;">Kayıt yok</div>' :
+                `<table class="stok-table"><thead><th>Kodu</th><th>Adı</th><th>Tabela Adı</th><th>İşlemler</th></thead><tbody>
+                ${m.data.map(x => `<tr>
+                    <td>${x.musteri_kodu}</td><td>${x.musteri_adi}</td><td>${x.tabela_adi}</td>
+                    <td>
+                        <button class="btn-small" onclick="duzenleMusteri(${x.id},'${x.musteri_kodu.replace(/'/g,"\\'")}','${x.musteri_adi.replace(/'/g,"\\'")}','${x.tabela_adi.replace(/'/g,"\\'")}')" style="background:#ff9800;">✏️</button>
+                        <button class="btn-small" onclick="silMusteri(${x.id})" style="background:#f44336;">🗑️</button>
+                    </td>
+                </tr>`).join('')}
+                </tbody></table>`;
+            div.innerHTML = `<div class="card">
+                <div class="card-title">👤 Müşteriler</div>
+                <button class="btn" style="margin-bottom:12px;background:#4caf50;" onclick="showYeniMusteriModal()">+ Yeni Müşteri Ekle</button>
+                ${satirlar}
+            </div>`;
+        }
+        function showYeniMusteriModal() {
+            document.getElementById('musteriModalTitle').innerText = 'Yeni Müşteri Ekle';
+            document.getElementById('musteri_kodu_duzenle').value = '';
+            document.getElementById('musteri_adi_duzenle').value = '';
+            document.getElementById('tabela_adi_duzenle').value = '';
+            document.getElementById('musteri_id_duzenle').value = '';
+            document.getElementById('musteriModal').style.display = 'flex';
+        }
+        function duzenleMusteri(id, kod, ad, tabela) {
+            document.getElementById('musteriModalTitle').innerText = 'Müşteri Düzenle';
+            document.getElementById('musteri_kodu_duzenle').value = kod;
+            document.getElementById('musteri_adi_duzenle').value = ad;
+            document.getElementById('tabela_adi_duzenle').value = tabela;
+            document.getElementById('musteri_id_duzenle').value = String(id);
+            document.getElementById('musteriModal').style.display = 'flex';
+        }
+        function kapatMusteriModal() { document.getElementById('musteriModal').style.display = 'none'; }
+        async function kaydetMusteri() {
+            const idStr = document.getElementById('musteri_id_duzenle').value;
+            const id = idStr ? parseInt(idStr) : null;
+            const k = document.getElementById('musteri_kodu_duzenle').value.trim();
+            const a = document.getElementById('musteri_adi_duzenle').value.trim();
+            const t = document.getElementById('tabela_adi_duzenle').value.trim();
+            if (!k || !a || !t) { showToast('Tüm alanları doldurun', 'error'); return; }
+            showToast('Kaydediliyor...', 'info');
+            let r;
+            try {
+                if (id) r = await apiCall('/api/musteri_duzenle', { method: 'PUT', body: JSON.stringify({ id, musteri_kodu: k, musteri_adi: a, tabela_adi: t }) });
+                else r = await apiCall('/api/musteri_ekle', { method: 'POST', body: JSON.stringify({ musteri_kodu: k, musteri_adi: a, tabela_adi: t }) });
+            } catch(e) { showToast('Bağlantı hatası: ' + e.message, 'error'); return; }
+            if (!r) { showToast('Sunucu yanıt vermedi', 'error'); return; }
+            if (r.status === 200 && r.data.success) {
+                kapatMusteriModal();
+                showToast(r.data.mesaj, 'success');
+                const contentDiv = document.getElementById('content');
+                if (contentDiv) await showMusteriEkle(contentDiv);
+            } else showToast(r.data?.hata || `Hata (HTTP ${r.status})`, 'error');
+        }
+        async function silMusteri(id) {
+            if (!confirm('Bu müşteriyi silmek istediğinize emin misiniz?')) return;
+            showToast('Siliniyor...', 'info');
+            let r;
+            try { r = await apiCall(`/api/musteri_sil?id=${id}`, { method: 'DELETE' }); }
+            catch(e) { showToast('Bağlantı hatası: ' + e.message, 'error'); return; }
+            if (!r) { showToast('Sunucu yanıt vermedi', 'error'); return; }
+            if (r.status === 200 && r.data.success) {
+                showToast(r.data.mesaj, 'success');
+                const contentDiv = document.getElementById('content');
+                if (contentDiv) await showMusteriEkle(contentDiv);
+            } else showToast(r.data?.hata || `Hata (HTTP ${r.status})`, 'error');
+        }
         
         async function showKullaniciYonetim(div) {
             let k = await apiCall('/api/kullanici_listesi');
