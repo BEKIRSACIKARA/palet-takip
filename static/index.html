@@ -677,8 +677,8 @@
             let m = await apiCall('/api/tum_musteriler');
             if (!m?.data) { div.innerHTML = '<div class="card">Yükleniyor...</div>'; return; }
             const satirlar = m.data.length === 0 ? '<div style="color:#999;font-size:0.85rem;padding:8px 0;">Kayıt yok</div>' :
-                `<table class="stok-table"><thead><th>Kodu</th><th>Adı</th><th>Tabela Adı</th><th>İşlemler</th></thead><tbody>
-                ${m.data.map(x => `<tr>
+                `<table class="stok-table" id="musteriYonetimTablo"><thead><th>Kodu</th><th>Adı</th><th>Tabela Adı</th><th>İşlemler</th></thead><tbody>
+                ${m.data.map(x => `<tr data-kod="${x.musteri_kodu.toLowerCase()}" data-ad="${x.musteri_adi.toLowerCase()}" data-tabela="${x.tabela_adi.toLowerCase()}">
                     <td>${x.musteri_kodu}</td><td>${x.musteri_adi}</td><td>${x.tabela_adi}</td>
                     <td>
                         <button class="btn-small" onclick="duzenleMusteri(${x.id},'${x.musteri_kodu.replace(/'/g,"\\'")}','${x.musteri_adi.replace(/'/g,"\\'")}','${x.tabela_adi.replace(/'/g,"\\'")}')" style="background:#ff9800;">✏️</button>
@@ -689,8 +689,22 @@
             div.innerHTML = `<div class="card">
                 <div class="card-title">👤 Müşteriler</div>
                 <button class="btn" style="margin-bottom:12px;background:#4caf50;" onclick="showYeniMusteriModal()">+ Yeni Müşteri Ekle</button>
+                <input type="text" id="musteriYonetimArama" class="search-box" placeholder="🔎 Müşteri kodu, adı veya tabela adı ile ara..." onkeyup="filtreleMusteriYonetim()">
+                <div id="musteriYonetimSonuc" style="font-size:0.75rem;color:#999;margin:-8px 0 8px;"></div>
                 ${satirlar}
             </div>`;
+        }
+        function filtreleMusteriYonetim() {
+            let a = document.getElementById('musteriYonetimArama').value.trim().toLowerCase();
+            let gorunen = 0, toplam = 0;
+            document.querySelectorAll('#musteriYonetimTablo tbody tr').forEach(tr => {
+                toplam++;
+                let eslesir = a === '' || tr.getAttribute('data-kod').includes(a) || tr.getAttribute('data-ad').includes(a) || tr.getAttribute('data-tabela').includes(a);
+                tr.style.display = eslesir ? '' : 'none';
+                if (eslesir) gorunen++;
+            });
+            let sonucDiv = document.getElementById('musteriYonetimSonuc');
+            if (sonucDiv) sonucDiv.textContent = a === '' ? '' : `${gorunen} / ${toplam} müşteri gösteriliyor`;
         }
         function showYeniMusteriModal() {
             document.getElementById('musteriModalTitle').innerText = 'Yeni Müşteri Ekle';
