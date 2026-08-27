@@ -738,12 +738,15 @@ def get_hareketler(current_user):
 def get_hareketler_filtreli(current_user):
     data = request.get_json()
     dagitici_id, palet_tipi_id, baslangic, bitis = data.get('dagitici_id'), data.get('palet_tipi_id'), data.get('baslangic_tarihi'), data.get('bitis_tarihi')
+    cari_arama = (data.get('cari_arama') or '').strip()
     limit = data.get('limit', 100)
     conn = get_db_connection()
     cursor = conn.cursor()
     query = """SELECT h.tarih, u.kullanici_adi, u.ad_soyad, h.hareket_tipi, pt.stok_kodu, pt.palet_adi, h.miktar, h.aciklama, h.makbuz_no,
                CASE WHEN h.gonderen_tip = 'DAGITICI' THEN (SELECT ad_soyad FROM kullanicilar WHERE id = h.gonderen_id)
-                    WHEN h.alan_tip = 'DAGITICI' THEN (SELECT ad_soyad FROM kullanicilar WHERE id = h.alan_id) ELSE NULL END as ilgili_dagitici
+                    WHEN h.alan_tip = 'DAGITICI' THEN (SELECT ad_soyad FROM kullanicilar WHERE id = h.alan_id) ELSE NULL END as ilgili_dagitici,
+               CASE WHEN h.gonderen_tip = 'MUSTERI' THEN (SELECT musteri_kodu || ' - ' || musteri_adi FROM musteriler WHERE id = h.gonderen_id)
+                    WHEN h.alan_tip = 'MUSTERI' THEN (SELECT musteri_kodu || ' - ' || musteri_adi FROM musteriler WHERE id = h.alan_id) ELSE NULL END as ilgili_musteri
                FROM hareketler h JOIN kullanicilar u ON h.yapan_kullanici_id = u.id JOIN palet_tipleri pt ON h.palet_tipi_id = pt.id WHERE 1=1"""
     params = []
     if dagitici_id:
@@ -755,6 +758,14 @@ def get_hareketler_filtreli(current_user):
     if baslangic and bitis:
         query += " AND DATE(h.tarih) BETWEEN %s AND %s"
         params.extend([baslangic, bitis])
+    if cari_arama:
+        query += """ AND (
+            (h.gonderen_tip = 'MUSTERI' AND EXISTS(SELECT 1 FROM musteriler gm WHERE gm.id = h.gonderen_id AND (gm.musteri_kodu ILIKE %s OR gm.musteri_adi ILIKE %s)))
+            OR
+            (h.alan_tip = 'MUSTERI' AND EXISTS(SELECT 1 FROM musteriler am WHERE am.id = h.alan_id AND (am.musteri_kodu ILIKE %s OR am.musteri_adi ILIKE %s)))
+        )"""
+        arama_like = f"%{cari_arama}%"
+        params.extend([arama_like, arama_like, arama_like, arama_like])
     query += " ORDER BY h.tarih DESC LIMIT %s"
     params.append(limit)
     cursor.execute(query, params)
@@ -764,7 +775,7 @@ def get_hareketler_filtreli(current_user):
     hareketler = []
     for h in sonuc:
         tip_text = {'DEPO_DAGITICI': 'Depo→Dağıtıcı', 'DEPO_MUSTERI': 'Depo→Müşteri', 'MUSTERI_DEPO': 'Müşteri→Depo', 'DAGITICI_MUSTERI': 'Dağıtıcı→Müşteri', 'MUSTERI_DAGITICI': 'Müşteri→Dağıtıcı', 'DAGITICI_DEPO': 'Dağıtıcı→Depo', 'DEPO_STOK_HAREKET': 'Depo Stok Hareketi'}.get(h[3], h[3])
-        hareketler.append({'tarih': h[0], 'yapan': f"{h[2]} ({h[1]})", 'islem_tipi': tip_text, 'stok_kodu': h[4], 'palet_adi': h[5], 'miktar': h[6], 'aciklama': h[7], 'makbuz_no': h[8], 'ilgili_dagitici': h[9] or '-'})
+        hareketler.append({'tarih': h[0], 'yapan': f"{h[2]} ({h[1]})", 'islem_tipi': tip_text, 'stok_kodu': h[4], 'palet_adi': h[5], 'miktar': h[6], 'aciklama': h[7], 'makbuz_no': h[8], 'ilgili_dagitici': h[9] or '-', 'ilgili_musteri': h[10] or '-'})
     return jsonify(hareketler)
 
 
